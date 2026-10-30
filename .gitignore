@@ -1,0 +1,12 @@
+# Visual Studio / compilacion
+.vs/
+bin/
+obj/
+packages/
+*.user
+
+# Python
+.venv/
+__pycache__/
+.idea/
+.env

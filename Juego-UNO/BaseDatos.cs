@@ -88,7 +88,7 @@ namespace Juego_UNO
         /// una sola transaccion. Devuelve el id de la partida creada.
         /// POST /partidas
         /// </summary>
-        public static int RegistrarPartida(List<Jugador> jugadores, Carta cartaInicial)
+        public static int RegistrarPartida(IReadOnlyList<Jugador> jugadores, Carta cartaInicial)
         {
             // Se manda en el mismo orden en que se reparte: una carta por jugador por vuelta
             var reparto = new List<object>();

@@ -33,7 +33,9 @@ librerias.txt      requirements (UTF-8)
 Juego-UNO/
   Program.cs           Application.Run(new FormInicio())
   FormInicio.cs        pantalla de inicio + clase BotonUno (botón píldora dibujado)
-  Form1.cs             clase Ventana: TODA la lógica del juego y el acomodo de la mesa (~990 líneas)
+  Juego.cs             clase Juego: estado y reglas de la partida, sin WinForms ni base de datos (sirve para cliente y servidor)
+  Jugada.cs            un movimiento (jugador, accion, carta, color) que Juego manda a Registrar
+  Form1.cs             clase Ventana: dibuja la mesa, pide nombres/color, registra en la API y lleva el Timer del UNO
   Form1.Designer.cs    controles base (flowMano1..4, pictureBox4=descarte, pictureBox6=mazo, label1, button9, botonPasar, lblJugador1..4)
   BaseDatos.cs         cliente HTTP de la API + ErrorBaseDatos
   Carta.cs, Jugador.cs modelos
@@ -81,9 +83,14 @@ Juego-UNO/
 - DTO privados con `[JsonProperty("id_carta")]` → se convierten a `Carta`/`Jugador`. Peticiones con objetos anónimos snake_case.
 - Métodos: `ApiDisponible`, `ObtenerOCrearJugador`, `ObtenerCartas`, `RegistrarPartida(jugadores, cartaInicial)`
   (arma el reparto vuelta por vuelta desde `jugador.Mano`), `ObtenerPosiciones`, `RegistrarJugada(idPartida,idJugador,accion,idCarta?,color?)`, `TerminarPartida`.
-- Paquetes: Newtonsoft.Json 13.0.3 (packages.config). **MySqlConnector 2.6.2 sigue referenciado pero ya no se usa** (pendiente desinstalar).
+- Paquetes: solo Newtonsoft.Json 13.0.3 (packages.config). MySqlConnector y sus dependencias se quitaron (30 oct 2026).
+  La carpeta `packages/` no se sube: Visual Studio la restaura al compilar (o `MSBuild Juego-UNO.slnx -t:restore -p:RestorePackagesConfig=true`).
 
-## 7. Lógica del juego (`Form1.cs`, clase `Ventana`)
+## 7. Lógica del juego (`Juego.cs`, clase `Juego`)
+> 30 oct 2026: la lógica se separó de `Ventana` a `Juego`. `Juego.Registrar` (Func<Jugada,bool>) se llama ANTES de cambiar el estado;
+> si devuelve false el movimiento no se hace. Métodos: `Tirar`, `Robar`, `Pasar`, `DecirUno`, `CastigarUno`; consultas `PuedeActuar`,
+> `EsCartaValida`, `PuedePasar`; evento `MazoVacio`. El Timer de 4 s del UNO lo lleva quien usa la clase. Lo de abajo describe las reglas
+> (los nombres de campos ahora son propiedades de `Juego`: `Turno`, `Direccion`, `YaRobo`, `JugadorEnUno`, `CartaArriba`, `ColorActual`, `Ganador`).
 Estado **solo en memoria del cliente**: `jugadores` (ordenados por posicion), `mazo`, `cartaArriba`, `colorActual`,
 `idPartida`, `partidaEnCurso`, `turno` (índice 0-3), `direccion` (1/-1), `yaRobo`, `jugadorEnUno` (-1 = nadie).
 - `EmpezarPartida()` (público; lo usan `button9` y `FormInicio`): FormNombres → ObtenerOCrearJugador ×4 →
