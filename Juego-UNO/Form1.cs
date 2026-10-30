@@ -51,10 +51,6 @@ namespace Juego_UNO
         // Espacio maximo de cada mano; el panel se ajusta y centra dentro de el
         private Rectangle[] areasMano = new Rectangle[NumJugadores];
 
-        // Las imagenes se cargan una sola vez y se reutilizan (cargarlas en cada jugada
-        // deja archivos bloqueados y consume memoria)
-        private readonly Dictionary<string, Image> imagenes = new Dictionary<string, Image>();
-
         public Ventana()
         {
             InitializeComponent();
@@ -452,7 +448,7 @@ namespace Juego_UNO
             {
                 var pic = new PictureBox
                 {
-                    Image = ObtenerImagenCarta(carta, null, giro),
+                    Image = ImagenesCartas.Obtener(carta, null, giro),
                     SizeMode = PictureBoxSizeMode.Zoom,
                     Size = tamaño,
                     Margin = MargenCarta(posicion, false),
@@ -576,67 +572,13 @@ namespace Juego_UNO
         }
 
         // ============================================================
-        // Imagenes de las cartas
+        // Imagenes de las cartas (ver ImagenesCartas.cs)
         // ============================================================
-
-        private static string NombreArchivo(Carta carta, string colorMostrar = null)
-        {
-            if (carta.Tipo == "ordinaria")
-                return $"{carta.Color}_{carta.Numero}.png";
-
-            string color = carta.Color ?? colorMostrar;
-
-            switch (carta.Efecto)
-            {
-                case "cambiar_color": return "comodin_color.png";
-                case "+4": return "comodin_mas4.png";
-                case "bloquear": return $"{color}_bloqueo.png";
-                case "cambiar_direccion": return $"{color}_reversa.png";
-                case "+2": return $"{color}_mas2.png";
-                default: return "comodin_color.png";
-            }
-        }
-
-        /// <summary>
-        /// Imagen de la carta, cargada una sola vez y guardada para reutilizarla.
-        /// 'giro' sirve para las manos de los lados, donde las cartas van acostadas.
-        /// </summary>
-        private Image ObtenerImagenCarta(Carta carta, string colorMostrar = null,
-            RotateFlipType giro = RotateFlipType.RotateNoneFlipNone)
-        {
-            string archivo = NombreArchivo(carta, colorMostrar);
-            string clave = archivo + "|" + giro;
-
-            Image imagen;
-            if (imagenes.TryGetValue(clave, out imagen))
-                return imagen;
-
-            imagen = CargarImagen(archivo);
-            if (imagen != null && giro != RotateFlipType.RotateNoneFlipNone)
-                imagen.RotateFlip(giro);
-            imagenes[clave] = imagen;
-            return imagen;
-        }
-
-        /// <summary>
-        /// Lee la imagen de la carpeta Cartas sin dejar el archivo bloqueado.
-        /// Devuelve null si no existe.
-        /// </summary>
-        private static Image CargarImagen(string archivo)
-        {
-            string ruta = Path.Combine(Application.StartupPath, "Cartas", archivo);
-            if (!File.Exists(ruta))
-                return null;
-
-            using (var flujo = new FileStream(ruta, FileMode.Open, FileAccess.Read))
-            using (var original = Image.FromStream(flujo))
-                return new Bitmap(original);
-        }
 
         private void MostrarCartaEnPictureBox(PictureBox pb, Carta carta, string colorMostrar = null)
         {
             // No se hace Dispose de la imagen anterior: esta guardada para reutilizarse
-            pb.Image = ObtenerImagenCarta(carta, colorMostrar);
+            pb.Image = ImagenesCartas.Obtener(carta, colorMostrar);
             pb.SizeMode = PictureBoxSizeMode.Zoom;
         }
 

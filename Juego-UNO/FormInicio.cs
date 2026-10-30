@@ -15,9 +15,13 @@ namespace Juego_UNO
         // Colores del logo de UNO
         private static readonly Color Amarillo = Color.FromArgb(255, 222, 0);
         private static readonly Color Rojo = Color.FromArgb(220, 30, 30);
+        private static readonly Color Azul = Color.FromArgb(0, 114, 188);
 
         private readonly BotonUno botonJugar;
+        private readonly BotonUno botonRed;
         private readonly BotonUno botonSalir;
+        // Nombre usado en la ultima partida en red, para sugerirlo
+        private string nombreRed;
         private readonly Label etiquetaEstado;
         private bool apiDisponible = false;
         private bool monitoreando = true;
@@ -40,6 +44,15 @@ namespace Juego_UNO
             };
             botonJugar.Click += (s, e) => Jugar();
 
+            // En red no hace falta la API en esta PC: la usa el servidor
+            botonRed = new BotonUno
+            {
+                Text = "EN RED",
+                Relleno = Azul,
+                ForeColor = Color.White
+            };
+            botonRed.Click += async (s, e) => await JugarEnRed();
+
             botonSalir = new BotonUno
             {
                 Text = "SALIR",
@@ -58,6 +71,7 @@ namespace Juego_UNO
             //etiquetaEstado.Click += (s, e) => RevisarApi();
 
             Controls.Add(botonJugar);
+            Controls.Add(botonRed);
             Controls.Add(botonSalir);
             Controls.Add(etiquetaEstado);
 
@@ -85,16 +99,19 @@ namespace Juego_UNO
 
             // Botones debajo del logo (el logo llega hasta ~74% de la altura de la imagen)
             int altoBoton = alto * 11 / 100;
-            botonJugar.Size = new Size(ancho * 26 / 100, altoBoton);
+            botonJugar.Size = new Size(ancho * 22 / 100, altoBoton);
+            botonRed.Size = new Size(ancho * 22 / 100, altoBoton);
             botonSalir.Size = new Size(ancho * 14 / 100, altoBoton);
             botonJugar.Font = new Font("Segoe UI", altoBoton * 0.42f, FontStyle.Bold, GraphicsUnit.Pixel);
+            botonRed.Font = new Font("Segoe UI", altoBoton * 0.38f, FontStyle.Bold, GraphicsUnit.Pixel);
             botonSalir.Font = new Font("Segoe UI", altoBoton * 0.36f, FontStyle.Bold, GraphicsUnit.Pixel);
 
             int separacion = ancho * 2 / 100;
             int y = alto * 79 / 100;
-            int x = (ancho - botonJugar.Width - separacion - botonSalir.Width) / 2;
+            int x = (ancho - botonJugar.Width - botonRed.Width - botonSalir.Width - 2 * separacion) / 2;
             botonJugar.Location = new Point(x, y);
-            botonSalir.Location = new Point(botonJugar.Right + separacion, y);
+            botonRed.Location = new Point(botonJugar.Right + separacion, y);
+            botonSalir.Location = new Point(botonRed.Right + separacion, y);
 
             etiquetaEstado.Font = new Font("Segoe UI", Math.Max(9f, alto * 0.018f), FontStyle.Bold, GraphicsUnit.Point);
             AcomodarEstado();
@@ -182,7 +199,50 @@ namespace Juego_UNO
             await RevisarApi();
         }
 
-        
+        /// <summary>
+        /// Pide el servidor y el nombre, se conecta y abre la mesa en red.
+        /// Al cerrarse la mesa (fin de partida o desconexion) se regresa aqui.
+        /// </summary>
+        private async Task JugarEnRed()
+        {
+            string servidor, nombre;
+            int puerto;
+            using (var dialogo = new FormConexion(nombreRed))
+            {
+                if (dialogo.ShowDialog(this) != DialogResult.OK)
+                    return;
+                servidor = dialogo.Servidor;
+                puerto = dialogo.Puerto;
+                nombre = dialogo.Nombre;
+            }
+            nombreRed = nombre;
+
+            var cliente = new ClienteRed();
+            Cursor = Cursors.WaitCursor;
+            try
+            {
+                cliente.Conectar(servidor, puerto, nombre);
+            }
+            catch (Exception ex) when (ex is System.Net.Sockets.SocketException || ex is TimeoutException)
+            {
+                cliente.Dispose();
+                MessageBox.Show(this, $"No se pudo conectar con el servidor {servidor}:{puerto}.\n{ex.Message}",
+                    "UNO", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+            finally
+            {
+                Cursor = Cursors.Default;
+            }
+
+            monitoreando = false;
+            Hide();
+            using (var mesa = new VentanaRed(cliente, nombre))
+                mesa.ShowDialog();
+            Show();
+            monitoreando = true;
+            await RevisarApi();
+        }
     }
 
     /// <summary>

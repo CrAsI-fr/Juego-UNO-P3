@@ -2,6 +2,7 @@
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.Linq;
 using System.Net.Http;
 using System.Text;
@@ -11,7 +12,6 @@ namespace Juego_UNO
 {
     /// <summary>
     /// Error al comunicarse con la API: no esta corriendo, o respondio con un error.
-    /// Reemplaza a MySqlException en los catch de Form1.cs.
     /// </summary>
     public class ErrorBaseDatos : Exception
     {
@@ -24,8 +24,10 @@ namespace Juego_UNO
     /// </summary>
     public static class BaseDatos
     {
-        // Direccion donde corre la API (uvicorn main:app --reload)
-        private const string UrlApi = "http://127.0.0.1:8000/";
+        // Direccion donde corre la API (uvicorn main:app --reload). Se puede cambiar con
+        // <add key="UrlApi" value="http://IP:8000/" /> en el App.config del programa.
+        private static readonly string UrlApi =
+            ConfigurationManager.AppSettings["UrlApi"] ?? "http://127.0.0.1:8000/";
 
         // Un solo HttpClient para todo el programa (crear uno por peticion es lento)
         private static readonly HttpClient cliente = new HttpClient

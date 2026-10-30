@@ -1,3 +1,5 @@
 <Solution>
   <Project Path="Juego-UNO/Juego-UNO.csproj" Id="6ff68c28-1294-4b9c-83fa-327c09b60b2e" />
+  <Project Path="UNO.Comun/UNO.Comun.csproj" Id="6c2485c5-ff23-4dc9-ba8b-e5646da1e77e" />
+  <Project Path="UNO.Servidor/UNO.Servidor.csproj" Id="8e25d1b9-0adf-4e41-bf6c-762e5d3eab79" />
 </Solution>

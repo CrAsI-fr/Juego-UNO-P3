@@ -87,6 +87,29 @@ namespace Juego_UNO
             jugadores = jugadores.OrderBy(j => j.Posicion).ToList();
         }
 
+        /// <summary>
+        /// Lo que ve el jugador sentado en 'asiento': su mano completa y, de los demas,
+        /// solo cuantas cartas tienen. Es lo que el servidor manda a cada cliente.
+        /// </summary>
+        public EstadoPartida EstadoPara(int asiento, int idPartida = 0)
+        {
+            return new EstadoPartida
+            {
+                IdPartida = idPartida,
+                MiAsiento = asiento,
+                MiMano = jugadores[asiento].Mano.ToList(),
+                Jugadores = jugadores.Select((j, i) => new JugadorPublico { Nombre = j.Nombre, Asiento = i, Cartas = j.Mano.Count }).ToList(),
+                CartaArriba = CartaArriba,
+                ColorActual = ColorActual,
+                Turno = Turno,
+                Direccion = Direccion,
+                YaRobo = YaRobo,
+                JugadorEnUno = JugadorEnUno,
+                CartasEnMazo = mazo.Count,
+                Ganador = Ganador == null ? -1 : jugadores.IndexOf(Ganador)
+            };
+        }
+
         // ============================================================
         // Consultas (para saber que se puede hacer sin intentarlo)
         // ============================================================

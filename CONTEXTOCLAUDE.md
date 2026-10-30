@@ -33,16 +33,18 @@ librerias.txt      requirements (UTF-8)
 Juego-UNO/
   Program.cs           Application.Run(new FormInicio())
   FormInicio.cs        pantalla de inicio + clase BotonUno (botón píldora dibujado)
-  Juego.cs             clase Juego: estado y reglas de la partida, sin WinForms ni base de datos (sirve para cliente y servidor)
-  Jugada.cs            un movimiento (jugador, accion, carta, color) que Juego manda a Registrar
   Form1.cs             clase Ventana: dibuja la mesa, pide nombres/color, registra en la API y lleva el Timer del UNO
   Form1.Designer.cs    controles base (flowMano1..4, pictureBox4=descarte, pictureBox6=mazo, label1, button9, botonPasar, lblJugador1..4)
-  BaseDatos.cs         cliente HTTP de la API + ErrorBaseDatos
-  Carta.cs, Jugador.cs modelos
+  ImagenesCartas.cs    caché de imágenes de Cartas/ (compartida por Ventana y VentanaRed)
+  FormConexion.cs, ClienteRed.cs, VentanaRed.cs   modo EN RED (ver RED.md)
   FormNombres.cs       captura de 4 nombres (solo código)
   FormElegirColor.*    4 PictureBox con imágenes de color (de Ximena; AutoSize en constructor)
   FormGanador.cs       anuncio del ganador con confeti (solo código)
   Cartas/*.png         50 imágenes: {color}_{n}.png, {color}_bloqueo|reversa|mas2.png, comodin_color.png, comodin_mas4.png
+UNO.Comun/            biblioteca compartida (30 oct 2026): Carta, Jugador, Jugada, Juego (reglas), BaseDatos (UrlApi en App.config),
+                      Protocolo (Mensaje, EstadoPartida, TipoMensaje), Conexion (JSON por línea sobre TCP)
+UNO.Servidor/         consola TCP (puerto 5000): Servidor.cs (sala, partida, timer del UNO), --sin-base, --ip, --puerto
+RED.md, PROTOCOLO.md  cómo funciona/ejecutar la versión en red, qué falta, plan semanal y contrato de mensajes
 ```
 
 ## 4. Base de datos (`unobd`)

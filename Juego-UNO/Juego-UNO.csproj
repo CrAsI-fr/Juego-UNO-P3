@@ -37,6 +37,7 @@
       <HintPath>..\packages\Newtonsoft.Json.13.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
     </Reference>
     <Reference Include="System" />
+    <Reference Include="System.Configuration" />
     <Reference Include="System.Core" />
     <Reference Include="System.Numerics" />
     <Reference Include="System.Transactions" />
@@ -51,13 +52,15 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="BaseDatos.cs" />
-    <Compile Include="Carta.cs" />
+    <Compile Include="ClienteRed.cs" />
     <Compile Include="Form1.cs">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="Form1.Designer.cs">
       <DependentUpon>Form1.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormConexion.cs">
+      <SubType>Form</SubType>
     </Compile>
     <Compile Include="FormElegirColor.cs">
       <SubType>Form</SubType>
@@ -77,10 +80,11 @@
     <Compile Include="FormNombres.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="Juego.cs" />
-    <Compile Include="Jugada.cs" />
-    <Compile Include="Jugador.cs" />
+    <Compile Include="ImagenesCartas.cs" />
     <Compile Include="Program.cs" />
+    <Compile Include="VentanaRed.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="Properties\AssemblyInfo.cs" />
     <EmbeddedResource Include="Form1.resx">
       <DependentUpon>Form1.cs</DependentUpon>
@@ -269,6 +273,12 @@
     <Content Include="Cartas\verde_reversa.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\UNO.Comun\UNO.Comun.csproj">
+      <Project>{6C2485C5-FF23-4DC9-BA8B-E5646DA1E77E}</Project>
+      <Name>UNO.Comun</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
