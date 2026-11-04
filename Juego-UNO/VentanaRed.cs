@@ -91,10 +91,20 @@ namespace Juego_UNO
 
             pictureBoxDescarte = new PictureBox { Size = TamañoCentro, SizeMode = PictureBoxSizeMode.Zoom, BackColor = Color.Transparent };
             etiquetaColor = new Label { AutoSize = true, Font = new Font("Segoe UI", 11, FontStyle.Bold), Padding = new Padding(10, 4, 10, 4) };
+            // Pasar y ¡UNO! con el mismo estilo que la mesa local (Ventana)
             botonPasar = CrearBoton("Pasar", Color.FromArgb(200, 20, 20, 20), Color.White);
+            botonPasar.Font = new Font("Segoe UI", 10, FontStyle.Bold);
+            botonPasar.Padding = new Padding(8, 2, 8, 2);
+            botonPasar.FlatAppearance.MouseOverBackColor = Color.FromArgb(70, 70, 70);
             botonPasar.Click += (s, e) => cliente.Pasar();
+
+            // ¡UNO!: amarillo con borde negro grueso, como el logo
             botonUno = CrearBoton("¡UNO!", Color.Gold, Color.Black);
             botonUno.Font = new Font("Segoe UI", 16, FontStyle.Bold);
+            botonUno.Padding = new Padding(14, 4, 14, 4);
+            botonUno.FlatAppearance.BorderColor = Color.Black;
+            botonUno.FlatAppearance.BorderSize = 3;
+            botonUno.FlatAppearance.MouseOverBackColor = Color.Yellow;
             botonUno.Click += (s, e) => cliente.DecirUno();
             centro.Controls.AddRange(new Control[] { pictureBoxMazo, etiquetaMazo, pictureBoxDescarte, etiquetaColor, botonPasar, botonUno, etiquetaEstado });
             centro.Resize += (s, e) => AcomodarCentro();
