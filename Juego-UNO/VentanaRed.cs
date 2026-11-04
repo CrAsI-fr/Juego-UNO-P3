@@ -40,6 +40,7 @@ namespace Juego_UNO
         private readonly Button botonPasar;
         private readonly Button botonUno;
         private readonly ListBox historial;
+        private readonly SalaEspera salaEspera;
 
         // Cuenta regresiva del UNO. El servidor lleva el tiempo de verdad (4 s) y solo manda
         // quien debe decir UNO (jugador_en_uno); aqui se cuenta para que todos lo vean.
@@ -114,6 +115,9 @@ namespace Juego_UNO
             botonUno.FlatAppearance.BorderSize = 3;
             botonUno.FlatAppearance.MouseOverBackColor = Color.Yellow;
             botonUno.Click += (s, e) => cliente.DecirUno();
+            // Sala de espera: los 4 lugares mientras llegan los jugadores
+            salaEspera = new SalaEspera();
+            centro.Controls.Add(salaEspera);
             centro.Controls.AddRange(new Control[] { pictureBoxMazo, etiquetaMazo, pictureBoxDescarte, etiquetaColor, botonPasar, botonUno, etiquetaEstado });
             centro.Resize += (s, e) => AcomodarCentro();
 
@@ -205,7 +209,10 @@ namespace Juego_UNO
 
                 case TipoMensaje.Espera:
                     Agregar(mensaje.Texto);
-                    etiquetaEstado.Text = mensaje.Texto;
+                    var sentados = SalaEspera.NombresDesdeTexto(mensaje.Texto);
+                    salaEspera.Mostrar(sentados, miNombre);
+                    etiquetaEstado.Text = $"Esperando jugadores ({sentados.Count}/4)...";
+                    AcomodarCentro();
                     break;
 
                 case TipoMensaje.Estado:
@@ -304,6 +311,7 @@ namespace Juego_UNO
         private void Dibujar()
         {
             bool hayPartida = estado != null;
+            salaEspera.Visible = !hayPartida;
             pictureBoxMazo.Visible = hayPartida;
             etiquetaMazo.Visible = hayPartida;
             pictureBoxDescarte.Visible = hayPartida;
@@ -448,6 +456,8 @@ namespace Juego_UNO
         {
             int cx = centro.ClientSize.Width / 2;
             int cy = etiquetaEstado.Bottom + (centro.ClientSize.Height - etiquetaEstado.Bottom) / 2 - 20;
+            salaEspera.Width = Math.Max(300, Math.Min(720, centro.ClientSize.Width - 40));
+            salaEspera.Location = new Point(cx - salaEspera.Width / 2, cy - salaEspera.Height / 2);
             pictureBoxMazo.Location = new Point(cx - TamañoCentro.Width - 15, cy - TamañoCentro.Height / 2);
             pictureBoxDescarte.Location = new Point(cx + 15, cy - TamañoCentro.Height / 2);
             etiquetaColor.Location = new Point(pictureBoxDescarte.Left + (pictureBoxDescarte.Width - etiquetaColor.Width) / 2, pictureBoxDescarte.Bottom + 10);

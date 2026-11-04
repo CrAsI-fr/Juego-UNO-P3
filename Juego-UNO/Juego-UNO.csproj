@@ -83,6 +83,9 @@
     <Compile Include="ImagenesCartas.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="ReversoCarta.cs" />
+    <Compile Include="SalaEspera.cs">
+      <SubType>Component</SubType>
+    </Compile>
     <Compile Include="VentanaRed.cs">
       <SubType>Form</SubType>
     </Compile>
