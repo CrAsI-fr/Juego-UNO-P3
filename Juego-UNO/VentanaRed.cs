@@ -40,6 +40,14 @@ namespace Juego_UNO
         private readonly Button botonPasar;
         private readonly Button botonUno;
         private readonly ListBox historial;
+
+        // Cuenta regresiva del UNO. El servidor lleva el tiempo de verdad (4 s) y solo manda
+        // quien debe decir UNO (jugador_en_uno); aqui se cuenta para que todos lo vean.
+        private const int SegundosParaUno = 4;
+        private readonly System.Windows.Forms.Timer temporizadorUno = new System.Windows.Forms.Timer { Interval = 1000 };
+        private int segundosUno;
+        // Asiento que esta contando ahora (-1 = nadie)
+        private int asientoEnUno = -1;
         private readonly PictureBox pictureBoxMazo;
         private readonly Label etiquetaMazo;
 
@@ -145,9 +153,13 @@ namespace Juego_UNO
 
             cliente.MensajeRecibido += AlRecibir;
             cliente.Desconectado += AlDesconectarse;
+            temporizadorUno.Tick += (s, e) => AvanzarCuentaUno();
+
             FormClosed += (s, e) =>
             {
                 terminado = true;
+                temporizadorUno.Stop();
+                temporizadorUno.Dispose();
                 cliente.MensajeRecibido -= AlRecibir;
                 cliente.Desconectado -= AlDesconectarse;
                 cliente.Dispose();
@@ -372,8 +384,64 @@ namespace Juego_UNO
                 e.JugadorEnUno >= 0 ? $"{e.Jugadores[e.JugadorEnUno].Nombre} debe decir UNO..." :
                 e.EsMiTurno ? $"Tu turno (sentido {sentido})" :
                 $"Turno de {e.Jugadores[e.Turno].Nombre} (sentido {sentido})";
-
+            ActualizarCuentaUno();
             AcomodarCentro();
+        }
+
+
+        // ============================================================
+        // Cuenta regresiva del UNO
+        // ============================================================
+
+        /// <summary>
+        /// Se llama con cada estado nuevo: si alguien empezo a deber el UNO, arranca la cuenta;
+        /// si ya lo dijo (o lo castigaron), jugador_en_uno vuelve a -1 y la cuenta se detiene.
+        /// </summary>
+        private void ActualizarCuentaUno()
+        {
+            int enUno = estado.Ganador < 0 ? estado.JugadorEnUno : -1;
+            if (enUno != asientoEnUno)
+            {
+                asientoEnUno = enUno;
+                if (enUno >= 0)
+                {
+                    segundosUno = SegundosParaUno;
+                    temporizadorUno.Start();
+                }
+                else
+                {
+                    temporizadorUno.Stop();
+                }
+            }
+            MostrarCuentaUno();
+        }
+
+        private void AvanzarCuentaUno()
+        {
+            if (segundosUno > 0)
+                segundosUno--;
+            if (segundosUno == 0)
+                temporizadorUno.Stop();   // el servidor decide el castigo; aqui solo se espera su estado
+            MostrarCuentaUno();
+            AcomodarCentro();
+        }
+
+        private void MostrarCuentaUno()
+        {
+            if (estado == null || asientoEnUno < 0)
+                return;
+
+            bool soyYo = asientoEnUno == estado.MiAsiento;
+            string nombre = estado.Jugadores[asientoEnUno].Nombre;
+            if (soyYo)
+            {
+                botonUno.Text = $"¡UNO!  ·  {segundosUno}";
+                etiquetaEstado.Text = segundosUno > 0 ? $"¡Presiona UNO! Te quedan {segundosUno} s" : "Se acabó el tiempo...";
+            }
+            else
+            {
+                etiquetaEstado.Text = segundosUno > 0 ? $"{nombre} debe decir UNO... {segundosUno}" : $"{nombre} no dijo UNO a tiempo...";
+            }
         }
 
         private void AcomodarCentro()
