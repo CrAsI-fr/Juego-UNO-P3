@@ -233,6 +233,7 @@ namespace Juego_UNO
 
                 case TipoMensaje.Fin:
                     terminado = true;
+                    temporizadorUno.Stop();
                     Agregar(mensaje.Texto);
                     if (estado != null && estado.Ganador >= 0)
                     {
@@ -241,7 +242,9 @@ namespace Juego_UNO
                     }
                     else
                     {
-                        MessageBox.Show(this, mensaje.Texto, "UNO", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        // Sin ganador: alguien se desconecto (o la partida no llego a empezar)
+                        using (var pantallaFin = new FormFin(mensaje.Texto))
+                            pantallaFin.ShowDialog(this);
                     }
                     Close();
                     break;

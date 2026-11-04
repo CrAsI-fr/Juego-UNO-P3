@@ -68,6 +68,9 @@
     <Compile Include="FormElegirColor.Designer.cs">
       <DependentUpon>FormElegirColor.cs</DependentUpon>
     </Compile>
+    <Compile Include="FormFin.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="FormGanador.cs">
       <SubType>Form</SubType>
     </Compile>
