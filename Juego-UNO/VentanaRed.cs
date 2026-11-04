@@ -40,6 +40,9 @@ namespace Juego_UNO
         private readonly Button botonPasar;
         private readonly Button botonUno;
         private readonly ListBox historial;
+        private readonly PictureBox pictureBoxMazo;
+        private readonly Label etiquetaMazo;
+
 
         public VentanaRed(ClienteRed cliente, string miNombre)
         {
@@ -66,10 +69,26 @@ namespace Juego_UNO
                 Font = new Font("Segoe UI", 15, FontStyle.Bold),
                 Text = "Conectando..."
             };
-            botonRobar = CrearBoton("Robar", Color.FromArgb(200, 20, 20, 20), Color.White);
-            botonRobar.AutoSize = false;
-            botonRobar.Size = TamañoCentro;
-            botonRobar.Click += (s, e) => cliente.Robar();
+            // Mazo: el reverso de una carta; clic para robar
+            pictureBoxMazo = new PictureBox
+            {
+                Size = TamañoCentro,
+                SizeMode = PictureBoxSizeMode.Zoom,
+                BackColor = Color.Transparent,
+                Image = ReversoCarta.Obtener(),
+                Visible = false
+            };
+            pictureBoxMazo.Click += (s, e) => RobarCarta();
+            etiquetaMazo = new Label
+            {
+                AutoSize = true,
+                ForeColor = Color.White,
+                BackColor = Color.FromArgb(140, 0, 0, 0),
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                Padding = new Padding(8, 3, 8, 3),
+                Visible = false
+            };
+
             pictureBoxDescarte = new PictureBox { Size = TamañoCentro, SizeMode = PictureBoxSizeMode.Zoom, BackColor = Color.Transparent };
             etiquetaColor = new Label { AutoSize = true, Font = new Font("Segoe UI", 11, FontStyle.Bold), Padding = new Padding(10, 4, 10, 4) };
             botonPasar = CrearBoton("Pasar", Color.FromArgb(200, 20, 20, 20), Color.White);
@@ -77,7 +96,7 @@ namespace Juego_UNO
             botonUno = CrearBoton("¡UNO!", Color.Gold, Color.Black);
             botonUno.Font = new Font("Segoe UI", 16, FontStyle.Bold);
             botonUno.Click += (s, e) => cliente.DecirUno();
-            centro.Controls.AddRange(new Control[] { botonRobar, pictureBoxDescarte, etiquetaColor, botonPasar, botonUno, etiquetaEstado });
+            centro.Controls.AddRange(new Control[] { pictureBoxMazo, etiquetaMazo, pictureBoxDescarte, etiquetaColor, botonPasar, botonUno, etiquetaEstado });
             centro.Resize += (s, e) => AcomodarCentro();
 
             // Arriba: los rivales, en el orden en que les toca despues de mi
@@ -243,6 +262,19 @@ namespace Juego_UNO
             cliente.Tirar(carta, color);
         }
 
+        /// <summary>
+        /// Clic en el mazo. Igual que al tirar, el servidor decide si se puede.
+        /// </summary>
+        private void RobarCarta()
+        {
+            if (estado == null || !estado.EsMiTurno)
+            {
+                Agregar("No es tu turno.");
+                return;
+            }
+            cliente.Robar();
+        }
+
         // ============================================================
         // Dibujo
         // ============================================================
@@ -250,7 +282,8 @@ namespace Juego_UNO
         private void Dibujar()
         {
             bool hayPartida = estado != null;
-            botonRobar.Visible = hayPartida;
+            pictureBoxMazo.Visible = hayPartida;
+            etiquetaMazo.Visible = hayPartida;
             pictureBoxDescarte.Visible = hayPartida;
             etiquetaColor.Visible = hayPartida;
             botonPasar.Visible = hayPartida && estado.PuedoPasar;
@@ -308,8 +341,10 @@ namespace Juego_UNO
 
             // Centro
             pictureBoxDescarte.Image = ImagenesCartas.Obtener(e.CartaArriba, e.ColorActual);
-            botonRobar.Text = $"Robar\n({e.CartasEnMazo})";
-            botonRobar.Enabled = e.EsMiTurno;
+            bool puedoRobar = e.EsMiTurno && e.CartasEnMazo > 0;
+            pictureBoxMazo.Cursor = puedoRobar ? Cursors.Hand : Cursors.Default;
+            etiquetaMazo.Text = puedoRobar ? $"Clic para robar · {e.CartasEnMazo}" : $"Mazo · {e.CartasEnMazo}";
+            etiquetaMazo.ForeColor = puedoRobar ? Color.Yellow : Color.White;
             etiquetaColor.Text = "Color: " + Capitalizar(e.ColorActual);
             switch (e.ColorActual)
             {
@@ -335,10 +370,11 @@ namespace Juego_UNO
         {
             int cx = centro.ClientSize.Width / 2;
             int cy = etiquetaEstado.Bottom + (centro.ClientSize.Height - etiquetaEstado.Bottom) / 2 - 20;
-            botonRobar.Location = new Point(cx - TamañoCentro.Width - 15, cy - TamañoCentro.Height / 2);
+            pictureBoxMazo.Location = new Point(cx - TamañoCentro.Width - 15, cy - TamañoCentro.Height / 2);
             pictureBoxDescarte.Location = new Point(cx + 15, cy - TamañoCentro.Height / 2);
             etiquetaColor.Location = new Point(pictureBoxDescarte.Left + (pictureBoxDescarte.Width - etiquetaColor.Width) / 2, pictureBoxDescarte.Bottom + 10);
-            botonPasar.Location = new Point(botonRobar.Left + (botonRobar.Width - botonPasar.Width) / 2, botonRobar.Bottom + 10);
+            etiquetaMazo.Location = new Point(pictureBoxMazo.Left + (pictureBoxMazo.Width - etiquetaMazo.Width) / 2, pictureBoxMazo.Bottom + 10);
+            botonPasar.Location = new Point(pictureBoxMazo.Left + (pictureBoxMazo.Width - botonPasar.Width) / 2, etiquetaMazo.Bottom + 8);
             botonUno.Location = new Point(pictureBoxDescarte.Right + 25, pictureBoxDescarte.Top + (pictureBoxDescarte.Height - botonUno.Height) / 2);
         }
 
