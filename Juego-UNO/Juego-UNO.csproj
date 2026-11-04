@@ -80,6 +80,9 @@
     <Compile Include="FormNombres.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="FormNuevoNombre.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="ImagenesCartas.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="ReversoCarta.cs" />

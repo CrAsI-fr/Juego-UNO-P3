@@ -21,7 +21,8 @@ namespace Juego_UNO
         private static readonly Size TamañoCentro = new Size(100, 150);
 
         private readonly ClienteRed cliente;
-        private readonly string miNombre;
+        // No es readonly: cambia si el servidor rechaza el nombre y se escribe otro
+        private string miNombre;
         // Ultimo estado recibido (null mientras se espera a los demas jugadores)
         private EstadoPartida estado;
         // El servidor ya nos dio lugar en la mesa
@@ -226,13 +227,8 @@ namespace Juego_UNO
 
                 case TipoMensaje.Error:
                     Agregar("⚠ " + mensaje.Texto);
-                    // Si nos rechazaron al unirnos (nombre repetido, mesa llena...) no hay nada que hacer aqui
                     if (!sentado)
-                    {
-                        terminado = true;
-                        MessageBox.Show(this, mensaje.Texto, "UNO", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                        Close();
-                    }
+                        RechazoAlUnirse(mensaje.Texto);
                     break;
 
                 case TipoMensaje.Fin:
@@ -250,6 +246,42 @@ namespace Juego_UNO
                     Close();
                     break;
             }
+        }
+
+        /// <summary>
+        /// El servidor no nos dejo sentarnos. Si fue por el nombre, se pide otro y se vuelve a
+        /// intentar con la misma conexion (el servidor la deja abierta). Si la mesa esta llena
+        /// o la partida ya empezo, no hay nada que hacer y se regresa al inicio.
+        /// </summary>
+        private void RechazoAlUnirse(string motivo)
+        {
+            // Los textos vienen de Servidor.Unirse: "El nombre debe tener..." / "Ya hay alguien llamado..."
+            bool esPorElNombre = motivo != null &&
+                (motivo.Contains("nombre") || motivo.Contains("llamado"));
+
+            if (!esPorElNombre)
+            {
+                terminado = true;
+                MessageBox.Show(this, motivo, "UNO", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                Close();
+                return;
+            }
+
+            using (var dialogo = new FormNuevoNombre(motivo, miNombre))
+            {
+                if (dialogo.ShowDialog(this) != DialogResult.OK)
+                {
+                    terminado = true;
+                    Close();
+                    return;
+                }
+                miNombre = dialogo.Nombre;
+            }
+
+            Text = $"UNO en red - {miNombre}";
+            etiquetaMia.Text = miNombre;
+            etiquetaEstado.Text = "Conectando...";
+            cliente.Unirse(miNombre);
         }
 
         private void AlDesconectarse()
