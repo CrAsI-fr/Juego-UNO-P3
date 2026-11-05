@@ -70,11 +70,11 @@ para probar que el diseño funciona, y los puntos débiles están identificados:
       (reutilizar `AcomodarLayout`, `GiroCartas`, `MargenCarta`). Hoy los rivales son solo etiquetas.
 - [ ] Cartas de los rivales **boca abajo**: falta la imagen `Cartas/reverso.png` (agregarla al `.csproj`
       como Content, *Copy if newer*) y usar `ImagenesCartas.ObtenerArchivo("reverso.png", giro)`.
-- [ ] Mazo como imagen (reverso) en lugar del botón "Robar". El botón deshabilitado se lee mal.
-- [ ] Cuenta regresiva visible del UNO. El servidor solo avisa; el cliente puede contar 4 s al ver `jugador_en_uno`.
+- [x] Mazo como imagen (reverso) en lugar del botón "Robar". El botón deshabilitado se lee mal.
+- [x] Cuenta regresiva visible del UNO. El servidor solo avisa; el cliente puede contar 4 s al ver `jugador_en_uno`.
 - [ ] Errores más visibles (hoy solo van al historial), elevar la carta al pasar el mouse y marcar las jugables.
-- [ ] Sala de espera con los 4 lugares en lugar del texto `espera`.
-- [ ] Si el servidor rechaza el nombre, volver a pedirlo en vez de cerrar la ventana.
+- [x] Sala de espera con los 4 lugares en lugar del texto `espera`.
+- [x] Si el servidor rechaza el nombre, volver a pedirlo en vez de cerrar la ventana.
 
 **Servidor**
 - [ ] **Reconexión:** hoy, si a alguien se le cae la red, la partida termina sin ganador. Hace falta un token
