@@ -18,11 +18,21 @@ namespace Juego_UNO
 
         // Servidor -> cliente
         public const string Bienvenida = "bienvenida"; // posicion (asiento), texto
-        public const string Espera = "espera";         // texto: quienes estan en la sala
+        public const string Espera = "espera";         // nombres: quienes estan en la sala, en orden de lugar; texto
         public const string Estado = "estado";         // estado: lo que ve ese jugador
         public const string Aviso = "aviso";           // texto: lo que paso (para el historial)
-        public const string Error = "error";           // texto: por que se rechazo el mensaje
+        public const string Error = "error";           // texto: por que se rechazo el mensaje; codigo (ver CodigoError)
         public const string Fin = "fin";               // texto: termino la partida (ganador o abandono)
+    }
+
+    /// <summary>
+    /// Valores del campo "codigo" de un error, para que el programa decida que hacer sin
+    /// depender de la redaccion del texto, que es solo para mostrarse al jugador.
+    /// </summary>
+    public static class CodigoError
+    {
+        // Se rechazo el nombre al unirse: se puede volver a intentar con otro en la misma conexion
+        public const string NombreInvalido = "nombre_invalido";
     }
 
     /// <summary>
@@ -37,6 +47,8 @@ namespace Juego_UNO
         public string Color { get; set; }
         public int? Posicion { get; set; }
         public string Texto { get; set; }
+        public string Codigo { get; set; }
+        public List<string> Nombres { get; set; }
         public EstadoPartida Estado { get; set; }
     }
 

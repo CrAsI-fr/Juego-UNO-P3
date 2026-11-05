@@ -8,7 +8,7 @@ namespace Juego_UNO
 {
     /// <summary>
     /// Sala de espera de la mesa en red: 4 lugares, cada uno con el nombre de quien ya se
-    /// sento o "Esperando..." si esta libre. Se llena con el texto del mensaje "espera".
+    /// sento o "Esperando..." si esta libre. Se llena con los nombres del mensaje "espera".
     /// </summary>
     public class SalaEspera : Control
     {
@@ -42,35 +42,16 @@ namespace Juego_UNO
             Invalidate();
         }
 
-        /// <summary>
-        /// Saca los nombres del texto del servidor: "En la mesa (2/4): Ana, Luis".
-        /// </summary>
-        public static List<string> NombresDesdeTexto(string texto)
-        {
-            var lista = new List<string>();
-            if (string.IsNullOrEmpty(texto))
-                return lista;
-
-            int i = texto.IndexOf("): ", StringComparison.Ordinal);
-            if (i < 0)
-                return lista;
-
-            foreach (string nombre in texto.Substring(i + 3).Split(new[] { ", " }, StringSplitOptions.RemoveEmptyEntries))
-            {
-                if (nombre.Trim().Length > 0)
-                    lista.Add(nombre.Trim());
-            }
-            return lista;
-        }
-
         protected override void OnPaint(PaintEventArgs e)
         {
             var g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
 
             const int separacion = 16;
-            int ancho = Math.Max(60, (Width - separacion * (Lugares - 1)) / Lugares);
-            int alto = Height - 8;
+            // Se deja margen para que el borde y la sombra no se corten en las orillas del control
+            const int margen = 6;
+            int ancho = Math.Max(60, (Width - 2 * margen - separacion * (Lugares - 1)) / Lugares);
+            int alto = Height - 12;
             int x0 = (Width - (ancho * Lugares + separacion * (Lugares - 1))) / 2;
 
             using (var fuenteNombre = new Font("Segoe UI", 12, FontStyle.Bold))

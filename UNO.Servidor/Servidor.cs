@@ -114,12 +114,20 @@ namespace Juego_UNO
                 mensaje.Tipo != TipoMensaje.Unirse ? "Primero hay que unirse a la mesa con tu nombre." :
                 juego != null ? "La partida ya empezó." :
                 asientos.Count >= NumJugadores ? "La mesa está llena." :
+                null;
+            string problemaNombre =
+                problema != null ? null :
                 string.IsNullOrEmpty(nombre) || nombre.Length > 30 ? "El nombre debe tener entre 1 y 30 caracteres." :
                 asientos.Any(a => a.Nombre.Equals(nombre, StringComparison.OrdinalIgnoreCase)) ? $"Ya hay alguien llamado {nombre} en la mesa." :
                 null;
-            if (problema != null)
+            if (problema != null || problemaNombre != null)
             {
-                Enviar(conexion, TipoMensaje.Error, problema);
+                conexion.Enviar(new Mensaje
+                {
+                    Tipo = TipoMensaje.Error,
+                    Texto = problema ?? problemaNombre,
+                    Codigo = problemaNombre != null ? CodigoError.NombreInvalido : null
+                });
                 return null;
             }
 
@@ -141,9 +149,10 @@ namespace Juego_UNO
 
         private void AvisarSala()
         {
-            string texto = $"En la mesa ({asientos.Count}/{NumJugadores}): " + string.Join(", ", asientos.Select(a => a.Nombre));
+            var nombres = asientos.Select(a => a.Nombre).ToList();
+            string texto = $"En la mesa ({asientos.Count}/{NumJugadores}): " + string.Join(", ", nombres);
             foreach (var a in asientos)
-                Enviar(a.Conexion, TipoMensaje.Espera, texto);
+                a.Conexion.Enviar(new Mensaje { Tipo = TipoMensaje.Espera, Texto = texto, Nombres = nombres });
         }
 
         /// <summary>
