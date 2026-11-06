@@ -40,11 +40,13 @@ namespace Juego_UNO
         // Ultimo error de la API, para explicarle al cliente por que no se hizo su jugada
         private string ultimoErrorBase;
 
+        // Inactividad: tras SegundosSilencio sin jugar en su turno se alerta al jugador, que tiene
+        // SegundosConfirmar para responder "sigo_aqui". Si no responde, se le expulsa.
         private const int SegundosSilencio = 70;
-        private const int SegundosReconexion = 20;
+        private const int SegundosConfirmar = 20;
         private Timer TemporizadorTurno;
         private int cuentaTurno;
-        private bool esperandoReconexion;
+        private bool esperandoConfirmacion;
 
         private class Asiento
         {
@@ -81,7 +83,6 @@ namespace Juego_UNO
         private void IniciarCuentaTurno()
         {
             DetenerCuentaTurno();
-            esperandoReconexion = false;
             int esta = ++cuentaTurno;
             int lugarActual = juego.Turno;
             TemporizadorTurno = new Timer(_ => SeAcaboFaseSilencio(esta, lugarActual), null, SegundosSilencio * 1000, Timeout.Infinite);
@@ -92,15 +93,14 @@ namespace Juego_UNO
             {
                 if (esta != cuentaTurno || juego == null || juego.Turno != lugarActual) return;
                 
-                esperandoReconexion = true;
+                esperandoConfirmacion = true;
                 var asiento = asientos[lugarActual];
                 Registro($"El jugador {asiento.Nombre} lleva {SegundosSilencio}s inactivo.");
 
-                Enviar(asiento.Conexion, TipoMensaje.AlertaInactividad, $"Llevas {SegundosSilencio}s sin hacer nada. Tienes {SegundosReconexion}s para reconectarte.");
-                TemporizadorTurno.Change(SegundosReconexion * 1000, Timeout.Infinite);
+                Enviar(asiento.Conexion, TipoMensaje.AlertaInactividad, $"Llevas {SegundosSilencio}s sin hacer nada. Tienes {SegundosConfirmar}s para confirmar que sigues aquí.");
+                AvisarDemas(asiento, $"Esperando a {asiento.Nombre}: lleva {SegundosSilencio}s sin jugar. Si no responde en {SegundosConfirmar}s, la partida terminará.");
                 TemporizadorTurno.Dispose();
-                TemporizadorTurno = new Timer(_ => SeAcaboFaseFinal(esta, lugarActual), null, SegundosReconexion * 1000, Timeout.Infinite);
-     
+                TemporizadorTurno = new Timer(_ => SeAcaboFaseFinal(esta, lugarActual), null, SegundosConfirmar * 1000, Timeout.Infinite);
             }
         }
         private void SeAcaboFaseFinal(int esta, int lugarActual)
@@ -108,10 +108,10 @@ namespace Juego_UNO
             lock (candado)
             {
                 if (esta != cuentaTurno || juego == null || juego.Turno != lugarActual) return;
-                if (!esperandoReconexion) return;
+                if (!esperandoConfirmacion) return;
                 var asiento = asientos[lugarActual];
-                Registro($"El jugador {asiento.Nombre} no se reconecto a tiempo.");
-                Enviar(asiento.Conexion, TipoMensaje.Fin, "No te reconectaste a tiempo. Has sido desconectado por inactividad.");
+                Registro($"El jugador {asiento.Nombre} no confirmó a tiempo.");
+                Enviar(asiento.Conexion, TipoMensaje.Fin, "No confirmaste a tiempo. Has sido desconectado por inactividad.");
                 Desconectar(asiento);
                 asiento.Conexion.Dispose();
             }
@@ -119,7 +119,7 @@ namespace Juego_UNO
         private void DetenerCuentaTurno()
         {
             cuentaTurno++;
-            esperandoReconexion = false;
+            esperandoConfirmacion = false;
             TemporizadorTurno?.Dispose();
             TemporizadorTurno = null;
         }
@@ -308,15 +308,15 @@ namespace Juego_UNO
                     AvisarTodos($"¡{asiento.Nombre} dijo UNO!");
                     problema = null;
                     break;
-                case TipoMensaje.Reconectar:
-                    if (esperandoReconexion && juego.Turno == lugar)
+                case TipoMensaje.SigoAqui:
+                    if (esperandoConfirmacion && juego.Turno == lugar)
                     {
-                        Registro($"El jugador {asiento.Nombre} se ha reconectado");
+                        Registro($"El jugador {asiento.Nombre} confirmó que sigue aquí");
+                        AvisarDemas(asiento, $"{asiento.Nombre} sigue en la partida.");
                         IniciarCuentaTurno();
-                        problema = null;
                         return;
                     }
-                    problema = "No estás en fase de desconexión";
+                    problema = "No hay ninguna alerta de inactividad pendiente.";
                     break;
 
                 default:
@@ -496,6 +496,12 @@ namespace Juego_UNO
         private void AvisarTodos(string texto)
         {
             foreach (var a in asientos)
+                Enviar(a.Conexion, TipoMensaje.Aviso, texto);
+        }
+
+        private void AvisarDemas(Asiento excepto, string texto)
+        {
+            foreach (var a in asientos.Where(a => a != excepto))
                 Enviar(a.Conexion, TipoMensaje.Aviso, texto);
         }
 

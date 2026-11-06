@@ -260,13 +260,13 @@ namespace Juego_UNO
                     this.BeginInvoke(new Action(() => 
                     {
                         if (formAlertaActiva != null) return;
-                        using (var ventana = new FormReconectar())
+                        using (var ventana = new FormInactividad())
                         {
                             formAlertaActiva = ventana;
                             var resultado = ventana.ShowDialog(this);
                             if (resultado == DialogResult.OK)
                             {
-                                cliente.Reconectar();
+                                cliente.SigoAqui();
                             }
                         }
                         formAlertaActiva = null;
@@ -323,10 +323,6 @@ namespace Juego_UNO
                 MessageBox.Show(this, "Se perdió la conexión con el servidor.", "UNO", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 Close();
             }));
-
-            MessageBox.Show(this, "Se perdió la conexión con el servidor.", "UNO",
-                MessageBoxButtons.OK, MessageBoxIcon.Error);
-            Close();
         }
 
         // ============================================================

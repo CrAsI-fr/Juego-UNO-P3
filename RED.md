@@ -79,8 +79,9 @@ para probar que el diseño funciona, y los puntos débiles están identificados:
 **Servidor**
 - [ ] **Reconexión:** hoy, si a alguien se le cae la red, la partida termina sin ganador. Hace falta un token
       por jugador para recuperar su asiento.
-- [ ] **Detectar conexiones muertas:** si se desconecta un cable, TCP puede tardar mucho en enterarse.
-      Hace falta un `ping` cada pocos segundos o un tiempo máximo por turno.
+- [ ] **Detectar conexiones muertas:** si se desconecta un cable, TCP puede tardar mucho en enterarse. Ya hay
+      límite de inactividad para quien tiene el turno (70 s + 20 s para confirmar), pero un jugador sin turno
+      no se detecta hasta que le toque. Falta un `ping` cada pocos segundos.
 - [ ] **No esperar a la API dentro del `lock`:** si la API tarda (hasta 10 s), toda la mesa se congela.
 - [ ] Una sola mesa por servidor y al terminar se desconecta a todos. Faltan "otra partida" sin
       reconectarse y, si se quiere, varias mesas.
