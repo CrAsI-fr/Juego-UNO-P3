@@ -40,6 +40,10 @@ namespace Juego_UNO
         // Ultimo error de la API, para explicarle al cliente por que no se hizo su jugada
         private string ultimoErrorBase;
 
+        private const int SegundosPorTurno = 20;
+        private Timer TemporizadorTurno;
+        private int cuentaTurno;
+
         private class Asiento
         {
             public Conexion Conexion;
@@ -72,7 +76,35 @@ namespace Juego_UNO
                 new Thread(() => Atender(conexion)) { IsBackground = true }.Start();
             }
         }
-
+        private void IniciarCuentaTurno()
+        {
+            DetenerCuentaTurno();
+            int esta = ++cuentaTurno;
+            int lugarActual = juego.Turno;
+            TemporizadorTurno = new Timer(_ => SeAcaboTiempoTurno(esta, lugarActual), null, SegundosPorTurno * 1000, Timeout.Infinite);
+        }
+        private void SeAcaboTiempoTurno(int esta, int lugarActual)
+        {
+            lock (candado)
+            {
+                // Ya se pasó el turno, se reinicio la cuenta o se acabo la partida
+                if (esta != cuentaTurno || juego == null || juego.Turno != lugarActual)
+                    return;
+                string texto = $"{asientos[lugarActual].Nombre} desconectado por inactividad.";
+                String motivo = "Has sido desconectado por inactividad de 20s.";
+                var asiento = asientos[lugarActual];
+                Registro(texto);
+                Enviar(asiento.Conexion, TipoMensaje.Fin, motivo);
+                Desconectar(asiento);
+                asiento.Conexion.Dispose();
+            }
+        }
+        private void DetenerCuentaTurno()
+        {
+            cuentaTurno++;
+            TemporizadorTurno?.Dispose();
+            TemporizadorTurno = null;
+        }
         private void Atender(Conexion conexion)
         {
             Asiento asiento = null;
@@ -114,12 +146,20 @@ namespace Juego_UNO
                 mensaje.Tipo != TipoMensaje.Unirse ? "Primero hay que unirse a la mesa con tu nombre." :
                 juego != null ? "La partida ya empezó." :
                 asientos.Count >= NumJugadores ? "La mesa está llena." :
+                null;
+            string problemaNombre =
+                problema != null ? null :
                 string.IsNullOrEmpty(nombre) || nombre.Length > 30 ? "El nombre debe tener entre 1 y 30 caracteres." :
                 asientos.Any(a => a.Nombre.Equals(nombre, StringComparison.OrdinalIgnoreCase)) ? $"Ya hay alguien llamado {nombre} en la mesa." :
                 null;
-            if (problema != null)
+            if (problema != null || problemaNombre != null)
             {
-                Enviar(conexion, TipoMensaje.Error, problema);
+                conexion.Enviar(new Mensaje
+                {
+                    Tipo = TipoMensaje.Error,
+                    Texto = problema ?? problemaNombre,
+                    Codigo = problemaNombre != null ? CodigoError.NombreInvalido : null
+                });
                 return null;
             }
 
@@ -141,9 +181,10 @@ namespace Juego_UNO
 
         private void AvisarSala()
         {
-            string texto = $"En la mesa ({asientos.Count}/{NumJugadores}): " + string.Join(", ", asientos.Select(a => a.Nombre));
+            var nombres = asientos.Select(a => a.Nombre).ToList();
+            string texto = $"En la mesa ({asientos.Count}/{NumJugadores}): " + string.Join(", ", nombres);
             foreach (var a in asientos)
-                Enviar(a.Conexion, TipoMensaje.Espera, texto);
+                a.Conexion.Enviar(new Mensaje { Tipo = TipoMensaje.Espera, Texto = texto, Nombres = nombres });
         }
 
         /// <summary>
@@ -199,6 +240,7 @@ namespace Juego_UNO
             Registro($"Empieza la partida {idPartida}: " + string.Join(", ", asientos.Select(a => a.Nombre)));
             AvisarTodos($"¡Empieza la partida! Carta inicial: {juego.CartaArriba}. Empieza {asientos[0].Nombre}.");
             EnviarEstados();
+            IniciarCuentaTurno();
         }
 
         // ============================================================
@@ -314,7 +356,14 @@ namespace Juego_UNO
             }
 
             if (juego.JugadorEnUno >= 0)
+            {
+                DetenerCuentaTurno();
                 IniciarCuentaUno();
+            }
+            else
+            {
+                IniciarCuentaTurno();
+            }
             EnviarEstados();
         }
 
@@ -345,6 +394,7 @@ namespace Juego_UNO
                 DetenerCuentaUno();
                 juego.CastigarUno();
                 EnviarEstados();
+                IniciarCuentaTurno();
             }
         }
 
@@ -391,6 +441,7 @@ namespace Juego_UNO
         private void Terminar(string texto)
         {
             DetenerCuentaUno();
+            DetenerCuentaTurno();
             foreach (var a in asientos.ToList())
             {
                 Enviar(a.Conexion, TipoMensaje.Fin, texto);

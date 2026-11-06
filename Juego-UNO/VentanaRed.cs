@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Drawing;
 using System.Linq;
@@ -21,7 +22,8 @@ namespace Juego_UNO
         private static readonly Size TamañoCentro = new Size(100, 150);
 
         private readonly ClienteRed cliente;
-        private readonly string miNombre;
+        // No es readonly: cambia si el servidor rechaza el nombre y se escribe otro
+        private string miNombre;
         // Ultimo estado recibido (null mientras se espera a los demas jugadores)
         private EstadoPartida estado;
         // El servidor ya nos dio lugar en la mesa
@@ -34,12 +36,23 @@ namespace Juego_UNO
         private readonly FlowLayoutPanel panelMano;
         private readonly Panel centro;
         private readonly Label etiquetaEstado;
-        private readonly Button botonRobar;
         private readonly PictureBox pictureBoxDescarte;
         private readonly Label etiquetaColor;
         private readonly Button botonPasar;
         private readonly Button botonUno;
         private readonly ListBox historial;
+        private readonly SalaEspera salaEspera;
+
+        // Cuenta regresiva del UNO. El servidor lleva el tiempo de verdad (4 s) y solo manda
+        // quien debe decir UNO (jugador_en_uno); aqui se cuenta para que todos lo vean.
+        private const int SegundosParaUno = 4;
+        private readonly System.Windows.Forms.Timer temporizadorUno = new System.Windows.Forms.Timer { Interval = 1000 };
+        private int segundosUno;
+        // Asiento que esta contando ahora (-1 = nadie)
+        private int asientoEnUno = -1;
+        private readonly PictureBox pictureBoxMazo;
+        private readonly Label etiquetaMazo;
+
 
         public VentanaRed(ClienteRed cliente, string miNombre)
         {
@@ -66,18 +79,47 @@ namespace Juego_UNO
                 Font = new Font("Segoe UI", 15, FontStyle.Bold),
                 Text = "Conectando..."
             };
-            botonRobar = CrearBoton("Robar", Color.FromArgb(200, 20, 20, 20), Color.White);
-            botonRobar.AutoSize = false;
-            botonRobar.Size = TamañoCentro;
-            botonRobar.Click += (s, e) => cliente.Robar();
+            // Mazo: el reverso de una carta; clic para robar
+            pictureBoxMazo = new PictureBox
+            {
+                Size = TamañoCentro,
+                SizeMode = PictureBoxSizeMode.Zoom,
+                BackColor = Color.Transparent,
+                Image = ReversoCarta.Obtener(),
+                Visible = false
+            };
+            pictureBoxMazo.Click += (s, e) => RobarCarta();
+            etiquetaMazo = new Label
+            {
+                AutoSize = true,
+                ForeColor = Color.White,
+                BackColor = Color.FromArgb(140, 0, 0, 0),
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                Padding = new Padding(8, 3, 8, 3),
+                Visible = false
+            };
+
             pictureBoxDescarte = new PictureBox { Size = TamañoCentro, SizeMode = PictureBoxSizeMode.Zoom, BackColor = Color.Transparent };
             etiquetaColor = new Label { AutoSize = true, Font = new Font("Segoe UI", 11, FontStyle.Bold), Padding = new Padding(10, 4, 10, 4) };
+            // Pasar y ¡UNO! con el mismo estilo que la mesa local (Ventana)
             botonPasar = CrearBoton("Pasar", Color.FromArgb(200, 20, 20, 20), Color.White);
+            botonPasar.Font = new Font("Segoe UI", 10, FontStyle.Bold);
+            botonPasar.Padding = new Padding(8, 2, 8, 2);
+            botonPasar.FlatAppearance.MouseOverBackColor = Color.FromArgb(70, 70, 70);
             botonPasar.Click += (s, e) => cliente.Pasar();
+
+            // ¡UNO!: amarillo con borde negro grueso, como el logo
             botonUno = CrearBoton("¡UNO!", Color.Gold, Color.Black);
             botonUno.Font = new Font("Segoe UI", 16, FontStyle.Bold);
+            botonUno.Padding = new Padding(14, 4, 14, 4);
+            botonUno.FlatAppearance.BorderColor = Color.Black;
+            botonUno.FlatAppearance.BorderSize = 3;
+            botonUno.FlatAppearance.MouseOverBackColor = Color.Yellow;
             botonUno.Click += (s, e) => cliente.DecirUno();
-            centro.Controls.AddRange(new Control[] { botonRobar, pictureBoxDescarte, etiquetaColor, botonPasar, botonUno, etiquetaEstado });
+            // Sala de espera: los 4 lugares mientras llegan los jugadores
+            salaEspera = new SalaEspera();
+            centro.Controls.Add(salaEspera);
+            centro.Controls.AddRange(new Control[] { pictureBoxMazo, etiquetaMazo, pictureBoxDescarte, etiquetaColor, botonPasar, botonUno, etiquetaEstado });
             centro.Resize += (s, e) => AcomodarCentro();
 
             // Arriba: los rivales, en el orden en que les toca despues de mi
@@ -116,9 +158,13 @@ namespace Juego_UNO
 
             cliente.MensajeRecibido += AlRecibir;
             cliente.Desconectado += AlDesconectarse;
+            temporizadorUno.Tick += (s, e) => AvanzarCuentaUno();
+
             FormClosed += (s, e) =>
             {
                 terminado = true;
+                temporizadorUno.Stop();
+                temporizadorUno.Dispose();
                 cliente.MensajeRecibido -= AlRecibir;
                 cliente.Desconectado -= AlDesconectarse;
                 cliente.Dispose();
@@ -164,7 +210,10 @@ namespace Juego_UNO
 
                 case TipoMensaje.Espera:
                     Agregar(mensaje.Texto);
-                    etiquetaEstado.Text = mensaje.Texto;
+                    var sentados = mensaje.Nombres ?? new List<string>();
+                    salaEspera.Mostrar(sentados, miNombre);
+                    etiquetaEstado.Text = $"Esperando jugadores ({sentados.Count}/4)...";
+                    AcomodarCentro();
                     break;
 
                 case TipoMensaje.Estado:
@@ -178,17 +227,13 @@ namespace Juego_UNO
 
                 case TipoMensaje.Error:
                     Agregar("⚠ " + mensaje.Texto);
-                    // Si nos rechazaron al unirnos (nombre repetido, mesa llena...) no hay nada que hacer aqui
                     if (!sentado)
-                    {
-                        terminado = true;
-                        MessageBox.Show(this, mensaje.Texto, "UNO", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                        Close();
-                    }
+                        RechazoAlUnirse(mensaje.Texto, mensaje.Codigo == CodigoError.NombreInvalido);
                     break;
 
                 case TipoMensaje.Fin:
                     terminado = true;
+                    temporizadorUno.Stop();
                     Agregar(mensaje.Texto);
                     if (estado != null && estado.Ganador >= 0)
                     {
@@ -197,11 +242,45 @@ namespace Juego_UNO
                     }
                     else
                     {
-                        MessageBox.Show(this, mensaje.Texto, "UNO", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        // Sin ganador: alguien se desconecto (o la partida no llego a empezar)
+                        using (var pantallaFin = new FormFin(mensaje.Texto))
+                            pantallaFin.ShowDialog(this);
                     }
                     Close();
                     break;
             }
+        }
+
+        /// <summary>
+        /// El servidor no nos dejo sentarnos. Si fue por el nombre, se pide otro y se vuelve a
+        /// intentar con la misma conexion (el servidor la deja abierta). Si la mesa esta llena
+        /// o la partida ya empezo, no hay nada que hacer y se regresa al inicio.
+        /// </summary>
+        private void RechazoAlUnirse(string motivo, bool esPorElNombre)
+        {
+            if (!esPorElNombre)
+            {
+                terminado = true;
+                MessageBox.Show(this, motivo, "UNO", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                Close();
+                return;
+            }
+
+            using (var dialogo = new FormNuevoNombre(motivo, miNombre))
+            {
+                if (dialogo.ShowDialog(this) != DialogResult.OK)
+                {
+                    terminado = true;
+                    Close();
+                    return;
+                }
+                miNombre = dialogo.Nombre;
+            }
+
+            Text = $"UNO en red - {miNombre}";
+            etiquetaMia.Text = miNombre;
+            etiquetaEstado.Text = "Conectando...";
+            cliente.Unirse(miNombre);
         }
 
         private void AlDesconectarse()
@@ -226,7 +305,7 @@ namespace Juego_UNO
         {
             if (estado == null || !estado.EsMiTurno)
             {
-                Agregar("⚠ No es tu turno.");
+                Agregar("⚠ " + MotivoNoActuar());
                 return;
             }
 
@@ -243,6 +322,33 @@ namespace Juego_UNO
             cliente.Tirar(carta, color);
         }
 
+        /// <summary>
+        /// Clic en el mazo. Igual que al tirar, el servidor decide si se puede.
+        /// </summary>
+        private void RobarCarta()
+        {
+            if (estado == null || !estado.EsMiTurno)
+            {
+                Agregar("⚠ " + MotivoNoActuar());
+                return;
+            }
+            cliente.Robar();
+        }
+
+        /// <summary>
+        /// Por que no se puede jugar ahora, para explicarlo en el historial.
+        /// </summary>
+        private string MotivoNoActuar()
+        {
+            if (estado == null)
+                return "La partida todavía no empieza.";
+            if (estado.JugadorEnUno == estado.MiAsiento)
+                return "Primero presiona ¡UNO!";
+            if (estado.JugadorEnUno >= 0)
+                return $"Espera: {estado.Jugadores[estado.JugadorEnUno].Nombre} debe decir UNO.";
+            return "No es tu turno.";
+        }
+
         // ============================================================
         // Dibujo
         // ============================================================
@@ -250,7 +356,9 @@ namespace Juego_UNO
         private void Dibujar()
         {
             bool hayPartida = estado != null;
-            botonRobar.Visible = hayPartida;
+            salaEspera.Visible = !hayPartida;
+            pictureBoxMazo.Visible = hayPartida;
+            etiquetaMazo.Visible = hayPartida;
             pictureBoxDescarte.Visible = hayPartida;
             etiquetaColor.Visible = hayPartida;
             botonPasar.Visible = hayPartida && estado.PuedoPasar;
@@ -280,12 +388,12 @@ namespace Juego_UNO
                     BackColor = Color.FromArgb(140, 0, 0, 0),
                     ForeColor = suTurno ? Color.Yellow : Color.White,
                     Font = new Font("Segoe UI", 11, FontStyle.Bold),
-                    Text = $"{(suTurno ? "● " : "")}{rival.Nombre} · {TextoCartas(rival.Cartas)}"
+                    Text = $"{(suTurno ? "● " : "")}{rival.Nombre} · {TextoCartas(rival.Cartas, rival.Asiento != e.JugadorEnUno)}"
                 });
             }
 
             // Mi mano
-            etiquetaMia.Text = $"{(e.EsMiTurno ? "● " : "")}{miNombre} (tú) · {TextoCartas(e.MiMano.Count)}";
+            etiquetaMia.Text = $"{(e.EsMiTurno ? "● " : "")}{miNombre} (tú) · {TextoCartas(e.MiMano.Count, e.MiAsiento != e.JugadorEnUno)}";
             etiquetaMia.ForeColor = e.EsMiTurno ? Color.Yellow : Color.White;
             panelMano.SuspendLayout();
             foreach (var anterior in panelMano.Controls.Cast<Control>().ToList())
@@ -308,8 +416,10 @@ namespace Juego_UNO
 
             // Centro
             pictureBoxDescarte.Image = ImagenesCartas.Obtener(e.CartaArriba, e.ColorActual);
-            botonRobar.Text = $"Robar\n({e.CartasEnMazo})";
-            botonRobar.Enabled = e.EsMiTurno;
+            bool puedoRobar = e.EsMiTurno && e.CartasEnMazo > 0;
+            pictureBoxMazo.Cursor = puedoRobar ? Cursors.Hand : Cursors.Default;
+            etiquetaMazo.Text = puedoRobar ? $"Clic para robar · {e.CartasEnMazo}" : $"Mazo · {e.CartasEnMazo}";
+            etiquetaMazo.ForeColor = puedoRobar ? Color.Yellow : Color.White;
             etiquetaColor.Text = "Color: " + Capitalizar(e.ColorActual);
             switch (e.ColorActual)
             {
@@ -327,19 +437,80 @@ namespace Juego_UNO
                 e.JugadorEnUno >= 0 ? $"{e.Jugadores[e.JugadorEnUno].Nombre} debe decir UNO..." :
                 e.EsMiTurno ? $"Tu turno (sentido {sentido})" :
                 $"Turno de {e.Jugadores[e.Turno].Nombre} (sentido {sentido})";
-
+            ActualizarCuentaUno();
             AcomodarCentro();
+        }
+
+
+        // ============================================================
+        // Cuenta regresiva del UNO
+        // ============================================================
+
+        /// <summary>
+        /// Se llama con cada estado nuevo: si alguien empezo a deber el UNO, arranca la cuenta;
+        /// si ya lo dijo (o lo castigaron), jugador_en_uno vuelve a -1 y la cuenta se detiene.
+        /// </summary>
+        private void ActualizarCuentaUno()
+        {
+            int enUno = estado.Ganador < 0 ? estado.JugadorEnUno : -1;
+            if (enUno != asientoEnUno)
+            {
+                asientoEnUno = enUno;
+                if (enUno >= 0)
+                {
+                    segundosUno = SegundosParaUno;
+                    temporizadorUno.Start();
+                }
+                else
+                {
+                    temporizadorUno.Stop();
+                }
+            }
+            MostrarCuentaUno();
+        }
+
+        private void AvanzarCuentaUno()
+        {
+            if (segundosUno > 0)
+                segundosUno--;
+            if (segundosUno == 0)
+                temporizadorUno.Stop();   // el servidor decide el castigo; aqui solo se espera su estado
+            MostrarCuentaUno();
+            AcomodarCentro();
+        }
+
+        private void MostrarCuentaUno()
+        {
+            if (estado == null || asientoEnUno < 0)
+                return;
+
+            bool soyYo = asientoEnUno == estado.MiAsiento;
+            string nombre = estado.Jugadores[asientoEnUno].Nombre;
+            if (soyYo)
+            {
+                botonUno.Text = $"¡UNO!  ·  {segundosUno}";
+                etiquetaEstado.Text = segundosUno > 0 ? $"¡Presiona UNO! Te quedan {segundosUno} s" : "Se acabó el tiempo...";
+            }
+            else
+            {
+                etiquetaEstado.Text = segundosUno > 0 ? $"{nombre} debe decir UNO... {segundosUno}" : $"{nombre} no dijo UNO a tiempo...";
+            }
         }
 
         private void AcomodarCentro()
         {
             int cx = centro.ClientSize.Width / 2;
             int cy = etiquetaEstado.Bottom + (centro.ClientSize.Height - etiquetaEstado.Bottom) / 2 - 20;
-            botonRobar.Location = new Point(cx - TamañoCentro.Width - 15, cy - TamañoCentro.Height / 2);
+            salaEspera.Width = Math.Max(300, Math.Min(720, centro.ClientSize.Width - 40));
+            salaEspera.Location = new Point(cx - salaEspera.Width / 2, cy - salaEspera.Height / 2);
+            pictureBoxMazo.Location = new Point(cx - TamañoCentro.Width - 15, cy - TamañoCentro.Height / 2);
             pictureBoxDescarte.Location = new Point(cx + 15, cy - TamañoCentro.Height / 2);
             etiquetaColor.Location = new Point(pictureBoxDescarte.Left + (pictureBoxDescarte.Width - etiquetaColor.Width) / 2, pictureBoxDescarte.Bottom + 10);
-            botonPasar.Location = new Point(botonRobar.Left + (botonRobar.Width - botonPasar.Width) / 2, botonRobar.Bottom + 10);
-            botonUno.Location = new Point(pictureBoxDescarte.Right + 25, pictureBoxDescarte.Top + (pictureBoxDescarte.Height - botonUno.Height) / 2);
+            etiquetaMazo.Location = new Point(pictureBoxMazo.Left + (pictureBoxMazo.Width - etiquetaMazo.Width) / 2, pictureBoxMazo.Bottom + 10);
+            botonPasar.Location = new Point(pictureBoxMazo.Left + (pictureBoxMazo.Width - botonPasar.Width) / 2, etiquetaMazo.Bottom + 8);
+            // Con la ventana chica se acerca al descarte para no salirse del panel
+            int xUno = Math.Min(pictureBoxDescarte.Right + 25, centro.ClientSize.Width - botonUno.Width - 4);
+            botonUno.Location = new Point(xUno, pictureBoxDescarte.Top + (pictureBoxDescarte.Height - botonUno.Height) / 2);
         }
 
         private void Agregar(string texto)
@@ -348,9 +519,14 @@ namespace Juego_UNO
             historial.TopIndex = Math.Max(0, historial.Items.Count - 1);
         }
 
-        private static string TextoCartas(int cantidad)
+        /// <summary>
+        /// "¡UNO!" solo aparece cuando ya lo dijo, no mientras corre su cuenta.
+        /// </summary>
+        private static string TextoCartas(int cantidad, bool yaDijoUno)
         {
-            return cantidad == 1 ? "1 carta · ¡UNO!" : $"{cantidad} cartas";
+            if (cantidad != 1)
+                return $"{cantidad} cartas";
+            return yaDijoUno ? "1 carta · ¡UNO!" : "1 carta";
         }
 
         private static string Capitalizar(string texto)

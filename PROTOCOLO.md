@@ -31,10 +31,10 @@ y se avisa al equipo** (por PR, nunca directo en `main`).
 | tipo | campos | significado |
 |---|---|---|
 | `bienvenida` | `posicion`, `texto` | Te aceptaron en la mesa (`posicion` = lugar en la sala de espera, empieza en 0) |
-| `espera` | `texto` | Cambió la sala: quiénes están (`En la mesa (2/4): A, B`) |
+| `espera` | `nombres`, `texto` | Cambió la sala. `nombres`: lista en orden de lugar, la que debe usar el programa. `texto`: para mostrar (`En la mesa (2/4): A, B`) |
 | `estado` | `estado` | Lo que ves de la partida. Llega al empezar y después de **cada** jugada aceptada |
 | `aviso` | `texto` | Algo que pasó (para el historial): "Joaquin tiró Rojo +2." |
-| `error` | `texto` | Tu mensaje se rechazó y por qué. **El estado no cambió** |
+| `error` | `texto`, `codigo` (opcional) | Tu mensaje se rechazó y por qué. **El estado no cambió**. `codigo: "nombre_invalido"` = puedes reintentar `unirse` con otro nombre en la misma conexión. No interpretes `texto` en el código: es solo para el jugador |
 | `fin` | `texto` | Terminó la partida (ganador o alguien se desconectó). El servidor cierra la conexión |
 
 ### `estado` (clase `EstadoPartida`)
