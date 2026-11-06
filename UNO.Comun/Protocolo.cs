@@ -15,6 +15,7 @@ namespace Juego_UNO
         public const string Robar = "robar";
         public const string Pasar = "pasar";
         public const string DecirUno = "decir_uno";
+        public const string SigoAqui = "sigo_aqui";    // responde a alerta_inactividad
 
         // Servidor -> cliente
         public const string Bienvenida = "bienvenida"; // posicion (asiento), texto
@@ -23,9 +24,7 @@ namespace Juego_UNO
         public const string Aviso = "aviso";           // texto: lo que paso (para el historial)
         public const string Error = "error";           // texto: por que se rechazo el mensaje; codigo (ver CodigoError)
         public const string Fin = "fin";               // texto: termino la partida (ganador o abandono)
-
-        public const string AlertaInactividad = "alerta_inactividad";
-        public const string Reconectar = "reconectar";
+        public const string AlertaInactividad = "alerta_inactividad"; // texto: confirma con sigo_aqui o se te expulsa
     }
 
     /// <summary>

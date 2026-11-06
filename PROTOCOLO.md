@@ -19,6 +19,7 @@ y se avisa al equipo** (por PR, nunca directo en `main`).
 | `robar` | — | En tu turno (puedes robar varias veces) |
 | `pasar` | — | En tu turno, después de robar (o con el mazo vacío) |
 | `decir_uno` | — | Cuando `jugador_en_uno` es tu asiento (tienes 4 s) |
+| `sigo_aqui` | — | Responde a `alerta_inactividad` (tienes 20 s). No recupera conexiones perdidas: va por la misma conexión |
 
 ```json
 {"tipo":"unirse","nombre":"Ximena"}
@@ -34,6 +35,7 @@ y se avisa al equipo** (por PR, nunca directo en `main`).
 | `espera` | `nombres`, `texto` | Cambió la sala. `nombres`: lista en orden de lugar, la que debe usar el programa. `texto`: para mostrar (`En la mesa (2/4): A, B`) |
 | `estado` | `estado` | Lo que ves de la partida. Llega al empezar y después de **cada** jugada aceptada |
 | `aviso` | `texto` | Algo que pasó (para el historial): "Joaquin tiró Rojo +2." |
+| `alerta_inactividad` | `texto` | Llevas 70 s sin jugar en tu turno. Responde `sigo_aqui` en 20 s o se te expulsa. A los demás les llega un `aviso` |
 | `error` | `texto`, `codigo` (opcional) | Tu mensaje se rechazó y por qué. **El estado no cambió**. `codigo: "nombre_invalido"` = puedes reintentar `unirse` con otro nombre en la misma conexión. No interpretes `texto` en el código: es solo para el jugador |
 | `fin` | `texto` | Terminó la partida (ganador o alguien se desconectó). El servidor cierra la conexión |
 
@@ -79,4 +81,6 @@ cliente                     servidor
 Las de `Juego.cs` (las mismas que en una sola PC): mazo de 60, carta inicial de número,
 validación por color/número/símbolo/comodín, reversa, bloqueo, +2 y +4 (el siguiente roba y pierde
 turno), robo ilimitado, pasar solo después de robar, 4 segundos para decir UNO o 2 cartas de castigo.
-Si alguien se desconecta con la partida empezada, la partida termina **sin ganador**.
+Si alguien se desconecta con la partida empezada, la partida termina **sin ganador**. Lo mismo pasa si
+quien tiene el turno no juega en 70 s y no responde `sigo_aqui` en los 20 s siguientes; la cuenta se reinicia
+con cada jugada aceptada y se pausa durante la cuenta del UNO.

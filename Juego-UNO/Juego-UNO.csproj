@@ -80,17 +80,14 @@
     <Compile Include="FormInicio.Designer.cs">
       <DependentUpon>FormInicio.cs</DependentUpon>
     </Compile>
+    <Compile Include="FormInactividad.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="FormNombres.cs">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="FormNuevoNombre.cs">
       <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="FormReconectar.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="FormReconectar.Designer.cs">
-      <DependentUpon>FormReconectar.cs</DependentUpon>
     </Compile>
     <Compile Include="ImagenesCartas.cs" />
     <Compile Include="Program.cs" />

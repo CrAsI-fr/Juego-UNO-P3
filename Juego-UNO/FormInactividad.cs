@@ -1,23 +1,21 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
 using System.Drawing;
 using System.Drawing.Drawing2D;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace Juego_UNO
 {
-    public partial class FormReconectar : Form
+    /// <summary>
+    /// Alerta de inactividad: el servidor pide confirmar que el jugador sigue aqui. Devuelve OK si
+    /// presiono el boton a tiempo. No recupera conexiones perdidas (solo codigo, sin diseñador).
+    /// </summary>
+    public class FormInactividad : Form
     {
         private static readonly Color Amarillo = Color.FromArgb(255, 222, 0);
         private int segundosRestantes = 20;
-        private Timer timerUi;
-        private readonly BotonUno botonReconectar;
-        public FormReconectar()
+        private readonly Timer timerUi;
+        private readonly BotonUno botonSigoAqui;
+        public FormInactividad()
         {
             Text = "Alerta de inactividad";
             FormBorderStyle = FormBorderStyle.None;
@@ -27,20 +25,20 @@ namespace Juego_UNO
             DoubleBuffered = true;
 
             TopMost = true;
-            botonReconectar = new BotonUno
+            botonSigoAqui = new BotonUno
             {
-                Text = "RECONECTAR",
+                Text = "SIGO AQUÍ",
                 Relleno = Amarillo,
                 ForeColor = Color.Black,
                 Size = new Size(300, 64),
                 Font = new Font("Segoe UI", 20, FontStyle.Bold, GraphicsUnit.Pixel)
             };
-            botonReconectar.Location = new Point((ClientSize.Width - botonReconectar.Width) / 2, ClientSize.Height - botonReconectar.Height - 30);
-            botonReconectar.Click += (s, e) => {
+            botonSigoAqui.Location = new Point((ClientSize.Width - botonSigoAqui.Width) / 2, ClientSize.Height - botonSigoAqui.Height - 30);
+            botonSigoAqui.Click += (s, e) => {
                 DialogResult = DialogResult.OK;
                 Close();
             };
-            Controls.Add(botonReconectar);
+            Controls.Add(botonSigoAqui);
             Shown += (s, e) => System.Media.SystemSounds.Exclamation.Play();
             timerUi = new Timer { Interval = 1000 };
             timerUi.Tick += (s, e) =>
@@ -55,6 +53,11 @@ namespace Juego_UNO
                 }
             };
             timerUi.Start();
+            FormClosed += (s, e) =>
+            {
+                timerUi.Stop();
+                timerUi.Dispose();
+            };
         }
         protected override void OnPaint(PaintEventArgs e)
         {
@@ -65,7 +68,7 @@ namespace Juego_UNO
             {
                 g.FillRectangle(fondo, area);
             }
-            TextoConContorno(g, "!ALERTA DE INACTIVIDAD¡", 35, Amarillo, new RectangleF(0, 50, area.Width, 80));
+            TextoConContorno(g, "¡ALERTA DE INACTIVIDAD!", 35, Amarillo, new RectangleF(0, 50, area.Width, 80));
             TextoConContorno(g, $"Serás expulsado en {segundosRestantes}s", 20, Color.White, new RectangleF(0, 125, area.Width, 44));
 
             using (var negro = new Pen(Color.Black, 10))
