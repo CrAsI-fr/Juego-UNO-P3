@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Net.Sockets;
 using System.Threading;
 
 namespace Juego_UNO
@@ -47,6 +48,7 @@ namespace Juego_UNO
         public void Robar() => Enviar(new Mensaje { Tipo = TipoMensaje.Robar });
         public void Pasar() => Enviar(new Mensaje { Tipo = TipoMensaje.Pasar });
         public void DecirUno() => Enviar(new Mensaje { Tipo = TipoMensaje.DecirUno });
+        public void Reconectar() => Enviar(new Mensaje { Tipo = TipoMensaje.Reconectar });
 
         private void Enviar(Mensaje mensaje)
         {

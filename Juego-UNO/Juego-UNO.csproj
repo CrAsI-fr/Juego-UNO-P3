@@ -86,6 +86,12 @@
     <Compile Include="FormNuevoNombre.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="FormReconectar.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormReconectar.Designer.cs">
+      <DependentUpon>FormReconectar.cs</DependentUpon>
+    </Compile>
     <Compile Include="ImagenesCartas.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="ReversoCarta.cs" />

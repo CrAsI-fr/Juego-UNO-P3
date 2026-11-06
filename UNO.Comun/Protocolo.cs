@@ -23,6 +23,9 @@ namespace Juego_UNO
         public const string Aviso = "aviso";           // texto: lo que paso (para el historial)
         public const string Error = "error";           // texto: por que se rechazo el mensaje; codigo (ver CodigoError)
         public const string Fin = "fin";               // texto: termino la partida (ganador o abandono)
+
+        public const string AlertaInactividad = "alerta_inactividad";
+        public const string Reconectar = "reconectar";
     }
 
     /// <summary>

@@ -40,6 +40,12 @@ namespace Juego_UNO
         // Ultimo error de la API, para explicarle al cliente por que no se hizo su jugada
         private string ultimoErrorBase;
 
+        private const int SegundosSilencio = 70;
+        private const int SegundosReconexion = 20;
+        private Timer TemporizadorTurno;
+        private int cuentaTurno;
+        private bool esperandoReconexion;
+
         private class Asiento
         {
             public Conexion Conexion;
@@ -72,7 +78,51 @@ namespace Juego_UNO
                 new Thread(() => Atender(conexion)) { IsBackground = true }.Start();
             }
         }
+        private void IniciarCuentaTurno()
+        {
+            DetenerCuentaTurno();
+            esperandoReconexion = false;
+            int esta = ++cuentaTurno;
+            int lugarActual = juego.Turno;
+            TemporizadorTurno = new Timer(_ => SeAcaboFaseSilencio(esta, lugarActual), null, SegundosSilencio * 1000, Timeout.Infinite);
+        }
+        private void SeAcaboFaseSilencio(int esta, int lugarActual)
+        {
+            lock (candado)
+            {
+                if (esta != cuentaTurno || juego == null || juego.Turno != lugarActual) return;
+                
+                esperandoReconexion = true;
+                var asiento = asientos[lugarActual];
+                Registro($"El jugador {asiento.Nombre} lleva {SegundosSilencio}s inactivo.");
 
+                Enviar(asiento.Conexion, TipoMensaje.AlertaInactividad, $"Llevas {SegundosSilencio}s sin hacer nada. Tienes {SegundosReconexion}s para reconectarte.");
+                TemporizadorTurno.Change(SegundosReconexion * 1000, Timeout.Infinite);
+                TemporizadorTurno.Dispose();
+                TemporizadorTurno = new Timer(_ => SeAcaboFaseFinal(esta, lugarActual), null, SegundosReconexion * 1000, Timeout.Infinite);
+     
+            }
+        }
+        private void SeAcaboFaseFinal(int esta, int lugarActual)
+        {
+            lock (candado)
+            {
+                if (esta != cuentaTurno || juego == null || juego.Turno != lugarActual) return;
+                if (!esperandoReconexion) return;
+                var asiento = asientos[lugarActual];
+                Registro($"El jugador {asiento.Nombre} no se reconecto a tiempo.");
+                Enviar(asiento.Conexion, TipoMensaje.Fin, "No te reconectaste a tiempo. Has sido desconectado por inactividad.");
+                Desconectar(asiento);
+                asiento.Conexion.Dispose();
+            }
+        }
+        private void DetenerCuentaTurno()
+        {
+            cuentaTurno++;
+            esperandoReconexion = false;
+            TemporizadorTurno?.Dispose();
+            TemporizadorTurno = null;
+        }
         private void Atender(Conexion conexion)
         {
             Asiento asiento = null;
@@ -208,6 +258,7 @@ namespace Juego_UNO
             Registro($"Empieza la partida {idPartida}: " + string.Join(", ", asientos.Select(a => a.Nombre)));
             AvisarTodos($"¡Empieza la partida! Carta inicial: {juego.CartaArriba}. Empieza {asientos[0].Nombre}.");
             EnviarEstados();
+            IniciarCuentaTurno();
         }
 
         // ============================================================
@@ -256,6 +307,16 @@ namespace Juego_UNO
                     juego.DecirUno();
                     AvisarTodos($"¡{asiento.Nombre} dijo UNO!");
                     problema = null;
+                    break;
+                case TipoMensaje.Reconectar:
+                    if (esperandoReconexion && juego.Turno == lugar)
+                    {
+                        Registro($"El jugador {asiento.Nombre} se ha reconectado");
+                        IniciarCuentaTurno();
+                        problema = null;
+                        return;
+                    }
+                    problema = "No estás en fase de desconexión";
                     break;
 
                 default:
@@ -323,7 +384,14 @@ namespace Juego_UNO
             }
 
             if (juego.JugadorEnUno >= 0)
+            {
+                DetenerCuentaTurno();
                 IniciarCuentaUno();
+            }
+            else
+            {
+                IniciarCuentaTurno();
+            }
             EnviarEstados();
         }
 
@@ -354,6 +422,7 @@ namespace Juego_UNO
                 DetenerCuentaUno();
                 juego.CastigarUno();
                 EnviarEstados();
+                IniciarCuentaTurno();
             }
         }
 
@@ -400,6 +469,7 @@ namespace Juego_UNO
         private void Terminar(string texto)
         {
             DetenerCuentaUno();
+            DetenerCuentaTurno();
             foreach (var a in asientos.ToList())
             {
                 Enviar(a.Conexion, TipoMensaje.Fin, texto);
