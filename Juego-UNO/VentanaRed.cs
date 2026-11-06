@@ -52,6 +52,7 @@ namespace Juego_UNO
         private int asientoEnUno = -1;
         private readonly PictureBox pictureBoxMazo;
         private readonly Label etiquetaMazo;
+        private Form formAlertaActiva;
 
 
         public VentanaRed(ClienteRed cliente, string miNombre)
@@ -235,30 +236,40 @@ namespace Juego_UNO
                     terminado = true;
                     temporizadorUno.Stop();
                     Agregar(mensaje.Texto);
-                    if (estado != null && estado.Ganador >= 0)
+                    if (formAlertaActiva != null && !formAlertaActiva.IsDisposed)
                     {
-                        using (var anuncio = new FormGanador(estado.Jugadores[estado.Ganador].Nombre, estado.IdPartida))
-                            anuncio.ShowDialog(this);
+                        formAlertaActiva.DialogResult = DialogResult.Cancel;
+                        formAlertaActiva.Close();
                     }
-                    else
+                    this.BeginInvoke(new Action(() =>
                     {
-                        // Sin ganador: alguien se desconecto (o la partida no llego a empezar)
-                        using (var pantallaFin = new FormFin(mensaje.Texto))
-                            pantallaFin.ShowDialog(this);
-                    }
-                    Close();
+                        if (estado != null && estado.Ganador >= 0)
+                        {
+                            using (var anuncio = new FormGanador(estado.Jugadores[estado.Ganador].Nombre, estado.IdPartida))
+                                anuncio.ShowDialog(this);
+                        }
+                        else
+                        {
+                            using (var pantallaFin = new FormFin(mensaje.Texto))
+                                pantallaFin.ShowDialog(this);
+                        }
+                        Close();
+                    }));
                     break;
                 case TipoMensaje.AlertaInactividad:
                     this.BeginInvoke(new Action(() => 
                     {
-                        using (var ventanaAlerta = new FormReconectar())
+                        if (formAlertaActiva != null) return;
+                        using (var ventana = new FormReconectar())
                         {
-                            var resultado = ventanaAlerta.ShowDialog(this);
+                            formAlertaActiva = ventana;
+                            var resultado = ventana.ShowDialog(this);
                             if (resultado == DialogResult.OK)
                             {
                                 cliente.Reconectar();
                             }
                         }
+                        formAlertaActiva = null;
                     }));
                     break;
             }
@@ -301,6 +312,18 @@ namespace Juego_UNO
             if (terminado || IsDisposed)
                 return;
             terminado = true;
+
+            if (formAlertaActiva != null && !formAlertaActiva.IsDisposed)
+            {
+                formAlertaActiva.DialogResult = DialogResult.Cancel;
+                formAlertaActiva.Close();
+            }
+            this.BeginInvoke(new Action(() =>
+            {
+                MessageBox.Show(this, "Se perdió la conexión con el servidor.", "UNO", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Close();
+            }));
+
             MessageBox.Show(this, "Se perdió la conexión con el servidor.", "UNO",
                 MessageBoxButtons.OK, MessageBoxIcon.Error);
             Close();

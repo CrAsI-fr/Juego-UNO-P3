@@ -66,7 +66,7 @@ namespace Juego_UNO
                 g.FillRectangle(fondo, area);
             }
             TextoConContorno(g, "!ALERTA DE INACTIVIDAD¡", 35, Amarillo, new RectangleF(0, 50, area.Width, 80));
-            TextoConContorno(g, $"Serás expulsaod en {segundosRestantes}s", 20, Color.White, new RectangleF(0, 125, area.Width, 44));
+            TextoConContorno(g, $"Serás expulsado en {segundosRestantes}s", 20, Color.White, new RectangleF(0, 125, area.Width, 44));
 
             using (var negro = new Pen(Color.Black, 10))
             {
