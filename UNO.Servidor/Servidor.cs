@@ -40,9 +40,11 @@ namespace Juego_UNO
         // Ultimo error de la API, para explicarle al cliente por que no se hizo su jugada
         private string ultimoErrorBase;
 
-        private const int SegundosPorTurno = 20;
+        private const int SegundosSilencio = 70;
+        private const int SegundosReconexion = 20;
         private Timer TemporizadorTurno;
         private int cuentaTurno;
+        private bool esperandoReconexion;
 
         private class Asiento
         {
@@ -79,15 +81,45 @@ namespace Juego_UNO
         private void IniciarCuentaTurno()
         {
             DetenerCuentaTurno();
+            esperandoReconexion = false;
             int esta = ++cuentaTurno;
             int lugarActual = juego.Turno;
-            TemporizadorTurno = new Timer(_ => SeAcaboTiempoTurno(esta, lugarActual), null, SegundosPorTurno * 1000, Timeout.Infinite);
+            TemporizadorTurno = new Timer(_ => SeAcaboTiempoTurno(esta, lugarActual), null, SegundosSilencio * 1000, Timeout.Infinite);
+        }
+        private void SeAcaboFaseSilencio(int esta, int lugarActual)
+        {
+            lock (candado)
+            {
+                if (esta != cuentaTurno || juego == null || juego.Turno != lugarActual) return;
+                
+                esperandoReconexion = true;
+                var asiento = asientos[lugarActual];
+                Registro($"El jugador {asiento.Nombre} lleva {SegundosSilencio}s inactivo.");
+
+                Enviar(asiento.Conexion, TipoMensaje.AlertaInactividad, $"Llevas {SegundosSilencio}s sin hacer nada. Tienes {SegundosReconexion}s para reconectarte.");
+                TemporizadorTurno.Change(SegundosReconexion * 1000, Timeout.Infinite);
+                TemporizadorTurno.Dispose();
+                TemporizadorTurno = new Timer(_ => SeAcaboFaseFinal(esta, lugarActual), null, SegundosReconexion * 1000, Timeout.Infinite);
+     
+            }
+        }
+        private void SeAcaboFaseFinal(int esta, int lugarActual)
+        {
+            lock (candado)
+            {
+                if (esta != cuentaTurno || juego == null || juego.Turno != lugarActual) return;
+                if (!esperandoReconexion) return;
+                var asiento = asientos[lugarActual];
+                Registro($"El jugador {asiento.Nombre} no se reconecto a tiempo.");
+                Enviar(asiento.Conexion, TipoMensaje.Fin, "No te reconectaste a tiempo. Has sido desconectado por inactividad.");
+                Desconectar(asiento);
+                asiento.Conexion.Dispose();
+            }
         }
         private void SeAcaboTiempoTurno(int esta, int lugarActual)
         {
             lock (candado)
-            {
-                // Ya se pasó el turno, se reinicio la cuenta o se acabo la partida
+            { 
                 if (esta != cuentaTurno || juego == null || juego.Turno != lugarActual)
                     return;
                 string texto = $"{asientos[lugarActual].Nombre} desconectado por inactividad.";
@@ -102,6 +134,7 @@ namespace Juego_UNO
         private void DetenerCuentaTurno()
         {
             cuentaTurno++;
+            esperandoReconexion = false;
             TemporizadorTurno?.Dispose();
             TemporizadorTurno = null;
         }
@@ -289,6 +322,16 @@ namespace Juego_UNO
                     juego.DecirUno();
                     AvisarTodos($"¡{asiento.Nombre} dijo UNO!");
                     problema = null;
+                    break;
+                case TipoMensaje.Reconectar:
+                    if (esperandoReconexion && juego.Turno == lugar)
+                    {
+                        Registro($"El jugador {asiento.Nombre} se ha reconectado");
+                        IniciarCuentaTurno();
+                        problema = null;
+                        return;
+                    }
+                    problema = "No estás en fase de desconexión";
                     break;
 
                 default:
