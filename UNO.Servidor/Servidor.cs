@@ -84,7 +84,7 @@ namespace Juego_UNO
             esperandoReconexion = false;
             int esta = ++cuentaTurno;
             int lugarActual = juego.Turno;
-            TemporizadorTurno = new Timer(_ => SeAcaboTiempoTurno(esta, lugarActual), null, SegundosSilencio * 1000, Timeout.Infinite);
+            TemporizadorTurno = new Timer(_ => SeAcaboFaseSilencio(esta, lugarActual), null, SegundosSilencio * 1000, Timeout.Infinite);
         }
         private void SeAcaboFaseSilencio(int esta, int lugarActual)
         {
@@ -112,21 +112,6 @@ namespace Juego_UNO
                 var asiento = asientos[lugarActual];
                 Registro($"El jugador {asiento.Nombre} no se reconecto a tiempo.");
                 Enviar(asiento.Conexion, TipoMensaje.Fin, "No te reconectaste a tiempo. Has sido desconectado por inactividad.");
-                Desconectar(asiento);
-                asiento.Conexion.Dispose();
-            }
-        }
-        private void SeAcaboTiempoTurno(int esta, int lugarActual)
-        {
-            lock (candado)
-            { 
-                if (esta != cuentaTurno || juego == null || juego.Turno != lugarActual)
-                    return;
-                string texto = $"{asientos[lugarActual].Nombre} desconectado por inactividad.";
-                String motivo = "Has sido desconectado por inactividad de 20s.";
-                var asiento = asientos[lugarActual];
-                Registro(texto);
-                Enviar(asiento.Conexion, TipoMensaje.Fin, motivo);
                 Desconectar(asiento);
                 asiento.Conexion.Dispose();
             }

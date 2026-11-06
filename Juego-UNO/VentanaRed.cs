@@ -248,6 +248,19 @@ namespace Juego_UNO
                     }
                     Close();
                     break;
+                case TipoMensaje.AlertaInactividad:
+                    this.BeginInvoke(new Action(() => 
+                    {
+                        using (var ventanaAlerta = new FormReconectar())
+                        {
+                            var resultado = ventanaAlerta.ShowDialog(this);
+                            if (resultado == DialogResult.OK)
+                            {
+                                cliente.Reconectar();
+                            }
+                        }
+                    }));
+                    break;
             }
         }
 

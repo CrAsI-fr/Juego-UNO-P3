@@ -36,7 +36,7 @@ namespace Juego_UNO
                 Font = new Font("Segoe UI", 20, FontStyle.Bold, GraphicsUnit.Pixel)
             };
             botonReconectar.Location = new Point((ClientSize.Width - botonReconectar.Width) / 2, ClientSize.Height - botonReconectar.Height - 30);
-            botonReconectar.Click += (s, e) = > {
+            botonReconectar.Click += (s, e) => {
                 DialogResult = DialogResult.OK;
                 Close();
             };
@@ -79,7 +79,7 @@ namespace Juego_UNO
         }
         private static void TextoConContorno(Graphics g, string texto, float tamano, Color relleno, RectangleF area)
         {
-            using (var familia = new FontFamily("Segeo UI"))
+            using (var familia = new FontFamily("Segoe UI"))
             using (var formato = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center})
             using (var trazo = new GraphicsPath())
             {
