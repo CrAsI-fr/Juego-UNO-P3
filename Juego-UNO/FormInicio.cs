@@ -42,7 +42,7 @@ namespace Juego_UNO
                 Relleno = Amarillo,
                 ForeColor = Color.Black
             };
-            botonJugar.Click += (s, e) => Jugar();
+            botonJugar.Click += async (s, e) => await Jugar();
 
             // En red no hace falta la API en esta PC: la usa el servidor
             botonRed = new BotonUno
@@ -76,7 +76,7 @@ namespace Juego_UNO
             Controls.Add(etiquetaEstado);
 
             Load += (s, e) => AcomodarVentana();
-            Shown += (s, e) => RevisarApi();
+            Shown += async (s, e) => await RevisarApi();
         }
 
         /// <summary>

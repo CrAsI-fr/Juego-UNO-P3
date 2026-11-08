@@ -133,9 +133,18 @@ namespace Juego_UNO
         /// </summary>
         public bool EsCartaValida(Carta carta)
         {
-            bool coincideColor = carta.Color != null && carta.Color == ColorActual;
-            bool coincideNumero = carta.Numero != null && carta.Numero == CartaArriba.Numero;
-            bool coincideEfecto = carta.Efecto != null && carta.Efecto == CartaArriba.Efecto;
+            return EsJugable(carta, CartaArriba, ColorActual);
+        }
+
+        /// <summary>
+        /// La misma regla, sin un Juego: sirve al cliente en red para marcar las cartas que se
+        /// pueden tirar con lo que sabe del estado (la carta de arriba y el color en juego).
+        /// </summary>
+        public static bool EsJugable(Carta carta, Carta arriba, string colorActual)
+        {
+            bool coincideColor = carta.Color != null && carta.Color == colorActual;
+            bool coincideNumero = carta.Numero != null && carta.Numero == arriba.Numero;
+            bool coincideEfecto = carta.Efecto != null && carta.Efecto == arriba.Efecto;
             return EsComodin(carta) || coincideColor || coincideNumero || coincideEfecto;
         }
 
