@@ -31,6 +31,7 @@ namespace Juego_UNO
         // Ya llego "fin" o se cerro la ventana: la desconexion que sigue es normal
         private bool terminado;
 
+        private readonly Panel contenedorRivales;
         private readonly FlowLayoutPanel panelRivales;
         private readonly Label etiquetaMia;
         private readonly FlowLayoutPanel panelMano;
@@ -124,6 +125,13 @@ namespace Juego_UNO
             centro.Resize += (s, e) => AcomodarCentro();
 
             // Arriba: los rivales, en el orden en que les toca despues de mi
+            contenedorRivales = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = AltoCarta + 50,
+                BackColor = Color.FromArgb(40, 0, 0, 0)
+            };
+
             panelRivales = new FlowLayoutPanel
             {
                 Dock = DockStyle.Top,
@@ -134,10 +142,14 @@ namespace Juego_UNO
 
             // Abajo: mi mano, boca arriba
             var abajo = new Panel { Dock = DockStyle.Bottom, Height = AltoCarta + 70, BackColor = Color.FromArgb(60, 0, 0, 0) };
-            panelMano = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = false, Padding = new Padding(10, 4, 10, 0) };
+            /*panelMano = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = false, Padding = new Padding(10, 4, 10, 0) };
             etiquetaMia = new Label { Dock = DockStyle.Top, Height = 28, ForeColor = Color.White, Font = new Font("Segoe UI", 11, FontStyle.Bold), Padding = new Padding(10, 4, 0, 0) };
+            
             abajo.Controls.Add(panelMano);
-            abajo.Controls.Add(etiquetaMia);
+            abajo.Controls.Add(etiquetaMia);*/
+            var (miPanelVisual, panelMano, etiquetaMia) = CrearPanelJugador(miNombre);
+            miPanelVisual.Dock = DockStyle.Fill; // Se expande en la zona inferior
+            abajo.Controls.Add(miPanelVisual);
 
             // Derecha: lo que va pasando (avisos y errores del servidor)
             historial = new ListBox
@@ -154,8 +166,11 @@ namespace Juego_UNO
             // El que llena el espacio va primero: los demas se acomodan en los bordes
             Controls.Add(centro);
             Controls.Add(abajo);
-            Controls.Add(panelRivales);
+            // Controls.Add(panelRivales);
+            Controls.Add(contenedorRivales);
             Controls.Add(historial);
+
+
 
             cliente.MensajeRecibido += AlRecibir;
             cliente.Desconectado += AlDesconectarse;
@@ -172,6 +187,91 @@ namespace Juego_UNO
             };
 
             Dibujar();
+        }
+
+        private (Panel panelContenedor, FlowLayoutPanel flowMano, Label etiquetaNombre) CrearPanelJugador(string tituloInicial)
+        {
+            // Contenedor principal del jugador individual
+            var panelControl = new Panel
+            {
+                Size = new Size(260, AltoCarta + 70), // Ancho inicial aproximado, se puede ajustar
+                BackColor = Color.FromArgb(60, 0, 0, 0),
+                Padding = new Padding(5)
+            };
+
+            // Etiqueta superior del nombre/estado del jugador
+            var etiqueta = new Label
+            {
+                Dock = DockStyle.Top,
+                Height = 28,
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 11, FontStyle.Bold),
+                Text = tituloInicial,
+                Padding = new Padding(10, 4, 0, 0)
+            };
+
+            // FlowLayoutPanel para renderizar las cartas físicas
+            var flowMano = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                AutoScroll = true,
+                WrapContents = false,
+                Padding = new Padding(10, 4, 10, 0)
+            };
+
+            panelControl.Controls.Add(flowMano);
+            panelControl.Controls.Add(etiqueta);
+
+            return (panelControl, flowMano, etiqueta);
+        }
+
+        private void ActualizarInterfazRed(EstadoPartida estadoActual)
+        {
+            // 1. Limpiar los rivales anteriores para redibujar el nuevo estado
+            contenedorRivales.Controls.Clear();
+
+            // Supongamos que estadoActual.Rivales o estadoActual.Jugadores te da la lista de oponentes
+            // Excluyendo tu propio usuario para solo dibujar a los demás.
+            var rivales = estadoActual.Jugadores.Where(j => j.Nombre != miNombre).ToList();
+
+            if (rivales.Count == 0) 
+                return;
+
+            // Calcular un ancho proporcional para que los paneles se distribuyan limpiamente arriba
+            int anchoPorRival = contenedorRivales.Width / rivales.Count;
+
+            foreach (var rival in rivales)
+            {
+                // Creamos el panel clonando la estructura visual del tuyo
+                var (panelRival, flowManoRival, etiquetaRival) = CrearPanelJugador($"{rival.Nombre} ({rival.Cartas} cartas)");
+
+                panelRival.Width = anchoPorRival;
+                panelRival.Dock = DockStyle.Left; // Se alinean uno al lado del otro arriba
+                panelRival.BorderStyle = BorderStyle.FixedSingle; // Opcional: una sutil línea divisoria
+
+                // Resaltar si es el turno de este rival
+                if (estadoActual.Turno == rival.Asiento)
+                {
+                    panelRival.BackColor = Color.FromArgb(100, 255, 215, 0); // Fondo dorado tenue si es su turno
+                    etiquetaRival.ForeColor = Color.Gold;
+                }
+
+                // 2. Dibujar el REVERSO de sus cartas según las que tenga en mano
+                for (int i = 0; i < rival.Cartas; i++)
+                {
+                    var picReverso = new PictureBox
+                    {
+                        Size = new Size(AnchoCarta, AltoCarta),
+                        SizeMode = PictureBoxSizeMode.Zoom,
+                        Image = ReversoCarta.Obtener(), // Usamos la misma clase que usas en el mazo
+                        Margin = new Padding(2)
+                    };
+                    flowManoRival.Controls.Add(picReverso);
+                }
+
+                // Agregar el panel del rival al contenedor superior
+                contenedorRivales.Controls.Add(panelRival);
+            }
         }
 
         private static Button CrearBoton(string texto, Color fondo, Color letra)
@@ -387,6 +487,11 @@ namespace Juego_UNO
 
         private void Dibujar()
         {
+            if (this.InvokeRequired)
+            {
+                this.Invoke(new Action(Dibujar));
+                return;
+            }
             bool hayPartida = estado != null;
             salaEspera.Visible = !hayPartida;
             pictureBoxMazo.Visible = hayPartida;
@@ -405,6 +510,9 @@ namespace Juego_UNO
             int n = e.Jugadores.Count;
             Text = $"UNO en red - Partida {e.IdPartida} - {miNombre}";
 
+            //-----
+            ActualizarInterfazRed(e);
+            //-----
             // Rivales: nombre y cuantas cartas tiene (sus cartas no llegan al cliente)
             foreach (var anterior in panelRivales.Controls.Cast<Control>().ToList())
                 anterior.Dispose();
