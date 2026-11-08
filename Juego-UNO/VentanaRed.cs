@@ -31,8 +31,11 @@ namespace Juego_UNO
         // Ya llego "fin" o se cerro la ventana: la desconexion que sigue es normal
         private bool terminado;
 
+        // Cartas boca abajo de los rivales (mas chicas que las de mi mano)
+        private const int AnchoRival = 60;
+        private const int AltoRival = 90;
+
         private readonly Panel contenedorRivales;
-        private readonly FlowLayoutPanel panelRivales;
         private readonly Label etiquetaMia;
         private readonly FlowLayoutPanel panelMano;
         private readonly Panel centro;
@@ -124,30 +127,22 @@ namespace Juego_UNO
             centro.Controls.AddRange(new Control[] { pictureBoxMazo, etiquetaMazo, pictureBoxDescarte, etiquetaColor, botonPasar, botonUno, etiquetaEstado });
             centro.Resize += (s, e) => AcomodarCentro();
 
-            // Arriba: los rivales, en el orden en que les toca despues de mi
+            // Arriba: los rivales, en el orden en que les toca despues de mi, con sus cartas boca abajo
             contenedorRivales = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = AltoCarta + 50,
+                Height = AltoRival + 50,
                 BackColor = Color.FromArgb(40, 0, 0, 0)
             };
+            contenedorRivales.Resize += (s, e) => AcomodarRivales();
 
-            panelRivales = new FlowLayoutPanel
-            {
-                Dock = DockStyle.Top,
-                Height = 60,
-                Padding = new Padding(10),
-                BackColor = Color.FromArgb(60, 0, 0, 0)
-            };
-
-            // Abajo: mi mano, boca arriba
+            // Abajo: mi mano, boca arriba. Se asigna a los campos (no a variables nuevas)
+            // porque Dibujar los usa.
             var abajo = new Panel { Dock = DockStyle.Bottom, Height = AltoCarta + 70, BackColor = Color.FromArgb(60, 0, 0, 0) };
-            var panelMano = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = false, Padding = new Padding(10, 4, 10, 0) };
-            var etiquetaMia = new Label { Dock = DockStyle.Top, Height = 28, ForeColor = Color.White, Font = new Font("Segoe UI", 11, FontStyle.Bold), Padding = new Padding(10, 4, 0, 0) };
-            
-            abajo.Controls.Add(panelMano);
-            abajo.Controls.Add(etiquetaMia);
-            var (miPanelVisual, panelMano1, etiquetaMia1) = CrearPanelJugador(miNombre);
+
+            Panel miPanelVisual;
+            (miPanelVisual, panelMano, etiquetaMia) = CrearPanelJugador(miNombre);
+
             miPanelVisual.Dock = DockStyle.Fill; // Se expande en la zona inferior
             abajo.Controls.Add(miPanelVisual);
 
@@ -166,11 +161,8 @@ namespace Juego_UNO
             // El que llena el espacio va primero: los demas se acomodan en los bordes
             Controls.Add(centro);
             Controls.Add(abajo);
-            // Controls.Add(panelRivales);
             Controls.Add(contenedorRivales);
             Controls.Add(historial);
-
-
 
             cliente.MensajeRecibido += AlRecibir;
             cliente.Desconectado += AlDesconectarse;
@@ -225,52 +217,87 @@ namespace Juego_UNO
             return (panelControl, flowMano, etiqueta);
         }
 
-        private void ActualizarInterfazRed(EstadoPartida estadoActual)
+        /// <summary>
+        /// Un panel por rival, de izquierda a derecha en el orden en que les toca despues de mi,
+        /// con el reverso de cada una de sus cartas (el servidor solo manda cuantas tienen).
+        /// </summary>
+        private void DibujarRivales(EstadoPartida e)
         {
-            // 1. Limpiar los rivales anteriores para redibujar el nuevo estado
-            contenedorRivales.Controls.Clear();
+            // Dispose libera los controles anteriores; Controls.Clear() solo los quitaria
+            foreach (var anterior in contenedorRivales.Controls.Cast<Control>().ToList())
+                anterior.Dispose();
 
-            // Supongamos que estadoActual.Rivales o estadoActual.Jugadores te da la lista de oponentes
-            // Excluyendo tu propio usuario para solo dibujar a los demás.
-            var rivales = estadoActual.Jugadores.Where(j => j.Nombre != miNombre).ToList();
-
-            if (rivales.Count == 0) 
-                return;
-
-            // Calcular un ancho proporcional para que los paneles se distribuyan limpiamente arriba
-            int anchoPorRival = contenedorRivales.Width / rivales.Count;
-
-            foreach (var rival in rivales)
+            int n = e.Jugadores.Count;
+            contenedorRivales.SuspendLayout();
+            for (int k = 1; k < n; k++)
             {
-                // Creamos el panel clonando la estructura visual del tuyo
-                var (panelRival, flowManoRival, etiquetaRival) = CrearPanelJugador($"{rival.Nombre} ({rival.Cartas} cartas)");
+                var rival = e.Jugadores[(e.MiAsiento + k) % n];
+                bool suTurno = e.Ganador < 0 && rival.Asiento == e.Turno;
 
-                panelRival.Width = anchoPorRival;
-                panelRival.Dock = DockStyle.Left; // Se alinean uno al lado del otro arriba
-                panelRival.BorderStyle = BorderStyle.FixedSingle; // Opcional: una sutil línea divisoria
-
-                // Resaltar si es el turno de este rival
-                if (estadoActual.Turno == rival.Asiento)
+                // Fondo dorado tenue si es su turno
+                var panelRival = new Panel
                 {
-                    panelRival.BackColor = Color.FromArgb(100, 255, 215, 0); // Fondo dorado tenue si es su turno
-                    etiquetaRival.ForeColor = Color.Gold;
-                }
-
-                // 2. Dibujar el REVERSO de sus cartas según las que tenga en mano
+                    BackColor = suTurno ? Color.FromArgb(100, 255, 215, 0) : Color.FromArgb(60, 0, 0, 0),
+                    BorderStyle = BorderStyle.FixedSingle,
+                    Padding = new Padding(5)
+                };
+                var etiqueta = new Label
+                {
+                    Dock = DockStyle.Top,
+                    Height = 28,
+                    ForeColor = suTurno ? Color.Gold : Color.White,
+                    Font = new Font("Segoe UI", 11, FontStyle.Bold),
+                    Padding = new Padding(10, 4, 0, 0),
+                    Text = $"{(suTurno ? "● " : "")}{rival.Nombre} · {TextoCartas(rival.Cartas, rival.Asiento != e.JugadorEnUno)}"
+                };
+                // Las cartas se acomodan a mano (AcomodarRivales) para poder encimarlas
+                var abanico = new Panel { Dock = DockStyle.Fill };
                 for (int i = 0; i < rival.Cartas; i++)
                 {
-                    var picReverso = new PictureBox
+                    abanico.Controls.Add(new PictureBox
                     {
-                        Size = new Size(AnchoCarta, AltoCarta),
+                        Size = new Size(AnchoRival, AltoRival),
                         SizeMode = PictureBoxSizeMode.Zoom,
-                        Image = ReversoCarta.Obtener(), // Usamos la misma clase que usas en el mazo
-                        Margin = new Padding(2)
-                    };
-                    flowManoRival.Controls.Add(picReverso);
+                        BackColor = Color.Transparent,
+                        Image = ReversoCarta.Obtener()
+                    });
                 }
 
-                // Agregar el panel del rival al contenedor superior
+                panelRival.Controls.Add(abanico);
+                panelRival.Controls.Add(etiqueta);
                 contenedorRivales.Controls.Add(panelRival);
+            }
+            contenedorRivales.ResumeLayout();
+            AcomodarRivales();
+        }
+
+        /// <summary>
+        /// Reparte el ancho entre los rivales y encima sus cartas lo necesario para que quepan.
+        /// Se llama al redibujar y cuando cambia el tamaño de la ventana.
+        /// </summary>
+        private void AcomodarRivales()
+        {
+            var paneles = contenedorRivales.Controls.Cast<Control>().ToList();
+            if (paneles.Count == 0)
+                return;
+
+            int ancho = contenedorRivales.ClientSize.Width / paneles.Count;
+            for (int i = 0; i < paneles.Count; i++)
+            {
+                paneles[i].Bounds = new Rectangle(i * ancho, 0, ancho, contenedorRivales.ClientSize.Height);
+
+                var abanico = paneles[i].Controls.OfType<Panel>().First();
+                var cartas = abanico.Controls.Cast<Control>().ToList();
+                if (cartas.Count == 0)
+                    continue;
+
+                // Separacion entre cartas: completa si caben, encimadas si no (minimo 4 px)
+                const int margen = 8;
+                int libre = abanico.ClientSize.Width - 2 * margen - AnchoRival;
+                int paso = cartas.Count == 1 ? 0 : Math.Max(4, Math.Min(AnchoRival + 4, libre / (cartas.Count - 1)));
+                int y = Math.Max(0, (abanico.ClientSize.Height - AltoRival) / 2);
+                for (int c = 0; c < cartas.Count; c++)
+                    cartas[c].Location = new Point(margen + c * paso, y);
             }
         }
 
@@ -487,11 +514,6 @@ namespace Juego_UNO
 
         private void Dibujar()
         {
-            if (this.InvokeRequired)
-            {
-                this.Invoke(new Action(Dibujar));
-                return;
-            }
             bool hayPartida = estado != null;
             salaEspera.Visible = !hayPartida;
             pictureBoxMazo.Visible = hayPartida;
@@ -507,30 +529,10 @@ namespace Juego_UNO
             }
 
             var e = estado;
-            int n = e.Jugadores.Count;
             Text = $"UNO en red - Partida {e.IdPartida} - {miNombre}";
 
-            //-----
-            ActualizarInterfazRed(e);
-            //-----
-            // Rivales: nombre y cuantas cartas tiene (sus cartas no llegan al cliente)
-            foreach (var anterior in panelRivales.Controls.Cast<Control>().ToList())
-                anterior.Dispose();
-            for (int k = 1; k < n; k++)
-            {
-                var rival = e.Jugadores[(e.MiAsiento + k) % n];
-                bool suTurno = e.Ganador < 0 && rival.Asiento == e.Turno;
-                panelRivales.Controls.Add(new Label
-                {
-                    AutoSize = true,
-                    Margin = new Padding(0, 0, 18, 0),
-                    Padding = new Padding(8, 4, 8, 4),
-                    BackColor = Color.FromArgb(140, 0, 0, 0),
-                    ForeColor = suTurno ? Color.Yellow : Color.White,
-                    Font = new Font("Segoe UI", 11, FontStyle.Bold),
-                    Text = $"{(suTurno ? "● " : "")}{rival.Nombre} · {TextoCartas(rival.Cartas, rival.Asiento != e.JugadorEnUno)}"
-                });
-            }
+            // Rivales: sus cartas boca abajo (sus cartas no llegan al cliente, solo cuantas son)
+            DibujarRivales(e);
 
             // Mi mano
             etiquetaMia.Text = $"{(e.EsMiTurno ? "● " : "")}{miNombre} (tú) · {TextoCartas(e.MiMano.Count, e.MiAsiento != e.JugadorEnUno)}";
