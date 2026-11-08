@@ -1,25 +1,34 @@
-﻿using System.Drawing;
+﻿using System.Collections.Generic;
+using System.Drawing;
 using System.Drawing.Drawing2D;
 
 namespace Juego_UNO
 {
     /// <summary>
-    /// Imagen del reverso de una carta (para el mazo). Usa Cartas/reverso.png si existe;
-    /// si todavia no esta, dibuja uno sencillo (negro con ovalo rojo y "UNO") para poder probar.
+    /// Imagen del reverso de una carta (mazo y manos de los rivales). Usa Cartas/reverso.png si
+    /// existe; si todavia no esta, dibuja uno sencillo (negro con ovalo rojo y "UNO").
+    /// 'giro' sirve para las manos de los lados, donde las cartas van acostadas.
+    /// No hacer Dispose de las imagenes que devuelve: se guardan para reutilizarse.
     /// </summary>
     public static class ReversoCarta
     {
-        private static Image dibujado;
+        private static readonly Dictionary<RotateFlipType, Image> dibujados = new Dictionary<RotateFlipType, Image>();
 
-        public static Image Obtener()
+        public static Image Obtener(RotateFlipType giro = RotateFlipType.RotateNoneFlipNone)
         {
-            Image archivo = ImagenesCartas.ObtenerArchivo("reverso.png");
+            Image archivo = ImagenesCartas.ObtenerArchivo("reverso.png", giro);
             if (archivo != null)
                 return archivo;
 
-            if (dibujado == null)
-                dibujado = Dibujar(160, 240);
-            return dibujado;
+            Image imagen;
+            if (!dibujados.TryGetValue(giro, out imagen))
+            {
+                imagen = Dibujar(160, 240);
+                if (giro != RotateFlipType.RotateNoneFlipNone)
+                    imagen.RotateFlip(giro);
+                dibujados[giro] = imagen;
+            }
+            return imagen;
         }
 
         private static Image Dibujar(int ancho, int alto)

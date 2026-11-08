@@ -1,17 +1,22 @@
 # Contexto del proyecto Juego UNO (para la siguiente sesión)
 
-> Escrito al terminar la versión de **una sola computadora** (8 oct 2026). El siguiente proyecto es
-> llevar este mismo juego a **varias computadoras**. Léelo completo antes de proponer cambios.
+> Escrito al terminar la versión de una sola computadora (8 oct 2026) y actualizado con la versión
+> **en red** (8 nov 2026). Léelo completo antes de proponer cambios. La versión en red está documentada
+> en `RED.md` (cómo funciona, cómo se ejecuta, limitaciones) y `PROTOCOLO.md` (mensajes).
 
 ## 1. Resumen
-- UNO para **4 jugadores en una sola PC**: una persona controla a todos, todas las cartas boca arriba.
+- UNO para **4 jugadores**, en dos modos: **JUGAR** (una sola PC, todas las cartas boca arriba) y
+  **EN RED** (4 PCs, servidor TCP en C# `UNO.Servidor`; cada quien ve solo su mano).
 - **C# WinForms, .NET Framework 4.7.2** (C# 7.3: sin `switch` de expresión ni `using var`).
 - Requisito del profesor: **C# no toca MySQL**. C# → HTTP/JSON → **API Python (FastAPI)** → MySQL.
-- Repo: `https://github.com/CrAsI-fr/Juego-UNO`. Local: `C:\Users\vseba\source\repos\CrAsI-fr\Juego-UNO`.
-- Usuario: Victor (rama `victor2.0`). Equipo: Joaquin, Ximena (rama `xop`), Angel (`rama_angel`).
+- Repo: `https://github.com/CrAsI-fr/Juego-UNO-P3` (rama principal `main`, cambios por PR).
+  Local: `C:\Users\vseba\source\repos\Juego-UNO-P3`. (El repo viejo `CrAsI-fr/Juego-UNO` era la versión de una PC.)
+- Usuario: Victor. Equipo: Joaquin (servidor), Ximena y Angel (interfaz). Ramas usadas: `ui-angel`,
+  `rama_joaquin`, `xop` (Ximena), `correcciones-*` y `victor_final` (Victor).
   Todo se escribe en **español** (código, comentarios, mensajes, commits).
 - Entregables del curso: juego + reporte (descripción, división de tareas, diagrama E-R, commits desde
-  el 21/09/2026, imagen de ramas, problemas encontrados). Ya se generó un reporte técnico `.docx`.
+  el 21/09/2026, imagen de ramas, problemas encontrados). Ya se generó un reporte técnico `.docx` de la versión
+  de una PC; el borrador de la versión en red está en `REPORTE.md`.
 
 ## 2. Cómo se ejecuta
 1. MySQL 8.0: ejecutar `scriptuno.sql` (borra y recrea la base `unobd`).
@@ -19,10 +24,12 @@
 3. `.env` (copiar de `.env.ejemplo`): `DB_HOST, DB_USER, DB_PASSWORD, DB_NAME=unobd, DB_PORT`.
    `.env`, `.venv/`, `.idea/` y `__pycache__/` están en `.gitignore`.
 4. `uvicorn main:app --reload` → `http://127.0.0.1:8000/docs`.
-5. Abrir `Juego-UNO.slnx` en Visual Studio (Community 18) y ejecutar.
-- Compilar desde la terminal:
-  `"C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe" Juego-UNO/Juego-UNO.csproj -p:OutDir=<temporal>/ -p:IntermediateOutputPath=<temporal>/obj/ -v:minimal`
-  (compilar a una carpeta temporal para no ensuciar `bin/obj`).
+5. Abrir `Juego-UNO.slnx` en Visual Studio (Community 18) y compilar la solución (3 proyectos).
+6. En red: `UNO.Servidor\bin\Debug\UNO.Servidor.exe` (con la API) o `--ip 127.0.0.1 --sin-base` para probar
+   en una PC; cada jugador abre `Juego-UNO.exe` → EN RED. Detalle en `RED.md`.
+- Compilar desde la terminal (en la raíz):
+  `"C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe" Juego-UNO.slnx -restore -p:RestorePackagesConfig=true`
+  Para probar sin ensuciar `bin/obj`, copiar el repo a una carpeta temporal y compilar ahí.
 
 ## 3. Estructura
 ```
@@ -36,15 +43,18 @@ Juego-UNO/
   Form1.cs             clase Ventana: dibuja la mesa, pide nombres/color, registra en la API y lleva el Timer del UNO
   Form1.Designer.cs    controles base (flowMano1..4, pictureBox4=descarte, pictureBox6=mazo, label1, button9, botonPasar, lblJugador1..4)
   ImagenesCartas.cs    caché de imágenes de Cartas/ (compartida por Ventana y VentanaRed)
-  FormConexion.cs, ClienteRed.cs, VentanaRed.cs   modo EN RED (ver RED.md)
+  FormConexion.cs, ClienteRed.cs, VentanaRed.cs   modo EN RED (ver RED.md); ClienteRed responde ping y se reconecta con token
+  SalaEspera.cs, ReversoCarta.cs, FormFin.cs, FormInactividad.cs, FormOtraPartida.cs, FormNuevoNombre.cs   pantallas del modo en red
   FormNombres.cs       captura de 4 nombres (solo código)
   FormElegirColor.*    4 PictureBox con imágenes de color (de Ximena; AutoSize en constructor)
   FormGanador.cs       anuncio del ganador con confeti (solo código)
   Cartas/*.png         50 imágenes: {color}_{n}.png, {color}_bloqueo|reversa|mas2.png, comodin_color.png, comodin_mas4.png
-UNO.Comun/            biblioteca compartida (30 oct 2026): Carta, Jugador, Jugada, Juego (reglas), BaseDatos (UrlApi en App.config),
-                      Protocolo (Mensaje, EstadoPartida, TipoMensaje), Conexion (JSON por línea sobre TCP)
-UNO.Servidor/         consola TCP (puerto 5000): Servidor.cs (sala, partida, timer del UNO), --sin-base, --ip, --puerto
-RED.md, PROTOCOLO.md  cómo funciona/ejecutar la versión en red, qué falta, plan semanal y contrato de mensajes
+UNO.Comun/            biblioteca compartida: Carta, Jugador, Jugada, Juego (reglas; Juego.EsJugable), BaseDatos (UrlApi en App.config),
+                      Protocolo (Mensaje, EstadoPartida, TipoMensaje, CodigoError/Aviso/Fin, Tiempos), Conexion (JSON por línea sobre TCP)
+UNO.Servidor/         consola TCP (puerto 5000): Servidor.cs (sala, partida, UNO, inactividad, ping, reconexión, otra partida),
+                      ColaBase.cs (registro en la API en otro hilo), MazoPrueba.cs; argumentos --sin-base, --ip, --puerto
+RED.md, PROTOCOLO.md  versión en red: cómo funciona, cómo ejecutarla, limitaciones y contrato de mensajes
+REPORTE.md            borrador del reporte de la versión en red
 ```
 
 ## 4. Base de datos (`unobd`)
@@ -75,10 +85,10 @@ RED.md, PROTOCOLO.md  cómo funciona/ejecutar la versión en red, qué falta, pl
   | POST | `/partidas/{id}/jugadas` | `{id_jugador,tipo_accion,id_carta?,color_elegido?}` | `{id_jugada,num_jugada}`; num_jugada = `max+1` con insert…select; 409 si la partida terminó |
   | PUT | `/partidas/{id}/terminar` | `{id_ganador?}` | `{id_partida,terminada_ahora}`; idempotente |
   | GET | `/partidas/{id}/log`, `/historial`, `/ganadores` | – | vistas |
-- Hoy uvicorn escucha en **127.0.0.1**: para varias PCs debe correr con `--host 0.0.0.0` y abrir el firewall.
+- uvicorn escucha en **127.0.0.1** y así se queda: en red, solo `UNO.Servidor` (en la misma PC) habla con la API.
 
 ## 6. Cliente C# (`BaseDatos.cs`)
-- `HttpClient` estático; `UrlApi = "http://127.0.0.1:8000/"` es una **constante en el código** (para red, moverla a configuración).
+- `HttpClient` estático; `UrlApi` sale de `App.config` (`<add key="UrlApi" .../>`), por defecto `http://127.0.0.1:8000/`.
 - `Enviar<T>(metodo, ruta, datos)`: `JsonConvert.SerializeObject` → `Task.Run(() => cliente.SendAsync(..)).GetAwaiter().GetResult()`
   (Task.Run evita el deadlock de WinForms) → si no es éxito lanza `ErrorBaseDatos` con el `detail` (en 422 junta los `msg`) → `DeserializeObject<T>`.
 - `HttpRequestException` → "No se pudo conectar con la API…"; `TaskCanceledException` → timeout de 10 s.
@@ -88,7 +98,7 @@ RED.md, PROTOCOLO.md  cómo funciona/ejecutar la versión en red, qué falta, pl
 - Paquetes: solo Newtonsoft.Json 13.0.3 (packages.config). MySqlConnector y sus dependencias se quitaron (30 oct 2026).
   La carpeta `packages/` no se sube: Visual Studio la restaura al compilar (o `MSBuild Juego-UNO.slnx -t:restore -p:RestorePackagesConfig=true`).
 
-## 7. Lógica del juego (`Juego.cs`, clase `Juego`)
+## 7. Lógica del juego (`UNO.Comun/Juego.cs`, clase `Juego`)
 > 30 oct 2026: la lógica se separó de `Ventana` a `Juego`. `Juego.Registrar` (Func<Jugada,bool>) se llama ANTES de cambiar el estado;
 > si devuelve false el movimiento no se hace. Métodos: `Tirar`, `Robar`, `Pasar`, `DecirUno`, `CastigarUno`; consultas `PuedeActuar`,
 > `EsCartaValida`, `PuedePasar`; evento `MazoVacio`. El Timer de 4 s del UNO lo lleva quien usa la clase. Lo de abajo describe las reglas
@@ -134,22 +144,25 @@ Estado **solo en memoria del cliente**: `jugadores` (ordenados por posicion), `m
 - En Git Bash usar `MSYS_NO_PATHCONV=1` para `git show "rama:.archivo"`.
 
 ## 10. Git y problemas conocidos
-- `master` recibe PRs; `victor2.0` va 4 commits adelante (UNO, pasar, pantalla de inicio refactor, ganador) → falta PR.
-- El historial tiene contraseñas de MySQL (commits viejos). Ahora viven solo en `.env`.
+- `main` recibe PRs (#1 ui-angel, #2 correcciones-red, #3 rama_joaquin, #4 correcciones-inactividad, #5 xop).
+- El historial del repo viejo (`CrAsI-fr/Juego-UNO`) tiene contraseñas de MySQL. Ahora viven solo en `.env`.
+- Problemas que ya pasaron en este repo: un merge que borró la declaración de `FormInicio` (no compilaba),
+  variables locales que tapaban campos (`var (..., panelMano, ...)` → NullReferenceException), controles que no
+  se liberaban (`Controls.Clear()` sin `Dispose`), archivos con finales de línea mezclados. Compilar y abrir la
+  mesa en red antes de cada PR.
 - Un merge de Ximena subió **marcas de conflicto** a `Form1.Designer.cs`; se arregló restaurando la versión limpia. Compilar antes de cada push.
 - Visual Studio reescala/reescribe `Form1.Designer.cs` solo; avisar al usuario que recargue archivos cuando Visual Studio está abierto.
 - Commits hechos por Claude llevan `Co-Authored-By: Claude …`. Solo hacer commit o push si el usuario lo pide.
 
-## 11. Ideas para la versión en varias computadoras
-- **Hoy el servidor no tiene autoridad**: el mazo, las manos, los turnos y la validación viven en `Ventana` (cliente). Con
-  varias PCs eso permite trampas y desincroniza. Hay que **mover el estado y las reglas a la API (servidor autoritativo)**:
-  la partida en memoria del servidor (o en tablas nuevas: mano por jugador, mazo, turno, dirección, color actual)
-  y endpoints de **acciones** (`jugar`, `robar`, `pasar`, `decir_uno`) que validan y responden el nuevo estado.
-- Cada cliente ve **solo su mano boca arriba**; de los rivales, solo el número de cartas (reverso). La UI actual ya tiene el conteo por jugador.
-- Sincronización: polling sencillo (`GET /partidas/{id}/estado` cada ~1 s) o **WebSockets** de FastAPI (mejor).
-  Si se usan WebSockets en C# (.NET 4.7.2), está `System.Net.WebSockets.ClientWebSocket`.
-- Lobby: crear o unirse a una partida, identificar al jugador por cliente (nombre o token), asientos = `partida_jugador.posicion`; empezar cuando haya 4.
-- La cuenta de UNO y sus castigos deberían decidirse en el servidor (marca de tiempo), y otros jugadores podrían "acusar".
-- Red: `uvicorn main:app --host 0.0.0.0 --port 8000`, IP del servidor configurable en el cliente (App.config), reglas de firewall.
-- Reutilizable tal cual: esquema SQL y log (`jugada`), `BaseDatos.Enviar<T>`/`ErrorBaseDatos`, toda la parte visual
-  (AcomodarLayout, display lateral, caché de imágenes, FormInicio/BotonUno, FormGanador).
+## 11. Versión en red (estado al 8 nov 2026)
+- Servidor TCP en C# (`UNO.Servidor`), autoritativo: tiene el `Juego`, valida y manda a cada jugador su `EstadoPartida`.
+  El cliente (`VentanaRed`) solo dibuja y manda intenciones. JSON por línea; ver `PROTOCOLO.md`.
+- Hilos: uno por jugador + `lock (candado)`; temporizadores con `System.Threading.Timer` y un contador para ignorar
+  disparos viejos; el registro de jugadas va en `ColaBase` (otro hilo, en orden), fuera del `lock`.
+- Ping cada 5 s; 15 s sin mensajes = conexión muerta; se guarda el lugar 60 s y el cliente se reconecta con su token.
+- Inactividad: 70 s sin jugar en tu turno → alerta → 20 s para "SIGO AQUÍ" → expulsión.
+- Al terminar: `fin` sin cerrar la conexión; cada quien manda `otra_partida` o se va.
+- Limitaciones: ver la sección 3 de `RED.md`.
+- Pruebas: arneses en C# (fuera del repo) que abren `VentanaRed` real contra el servidor real con bots TCP,
+  inyectan estados por reflexión y guardan capturas con `DrawToBitmap`; y una API falsa en Python para simular
+  una API lenta. No tocar la base real `unobd`.
