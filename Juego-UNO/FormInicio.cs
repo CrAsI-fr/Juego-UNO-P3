@@ -10,6 +10,7 @@ namespace Juego_UNO
     /// <summary>
     /// Pantalla de inicio: logo de fondo, botones Jugar y Salir, y el estado de la conexion con la API.
     /// </summary>
+    public partial class FormInicio : Form
     {
         // Colores del logo de UNO
         private static readonly Color Amarillo = Color.FromArgb(255, 222, 0);

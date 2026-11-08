@@ -142,12 +142,12 @@ namespace Juego_UNO
 
             // Abajo: mi mano, boca arriba
             var abajo = new Panel { Dock = DockStyle.Bottom, Height = AltoCarta + 70, BackColor = Color.FromArgb(60, 0, 0, 0) };
-            /*panelMano = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = false, Padding = new Padding(10, 4, 10, 0) };
-            etiquetaMia = new Label { Dock = DockStyle.Top, Height = 28, ForeColor = Color.White, Font = new Font("Segoe UI", 11, FontStyle.Bold), Padding = new Padding(10, 4, 0, 0) };
+            var panelMano = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = false, Padding = new Padding(10, 4, 10, 0) };
+            var etiquetaMia = new Label { Dock = DockStyle.Top, Height = 28, ForeColor = Color.White, Font = new Font("Segoe UI", 11, FontStyle.Bold), Padding = new Padding(10, 4, 0, 0) };
             
             abajo.Controls.Add(panelMano);
-            abajo.Controls.Add(etiquetaMia);*/
-            var (miPanelVisual, panelMano, etiquetaMia) = CrearPanelJugador(miNombre);
+            abajo.Controls.Add(etiquetaMia);
+            var (miPanelVisual, panelMano1, etiquetaMia1) = CrearPanelJugador(miNombre);
             miPanelVisual.Dock = DockStyle.Fill; // Se expande en la zona inferior
             abajo.Controls.Add(miPanelVisual);
 
