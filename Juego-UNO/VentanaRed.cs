@@ -3,39 +3,51 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Drawing;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace Juego_UNO
 {
     /// <summary>
-    /// ESQUELETO de la mesa para jugar en red. No tiene reglas: solo dibuja el EstadoPartida que
-    /// manda el servidor y le manda lo que hace el jugador (tirar, robar, pasar, decir UNO).
+    /// Mesa para jugar en red. No tiene reglas: dibuja el EstadoPartida que manda el servidor y le
+    /// manda lo que hace el jugador (tirar, robar, pasar, decir UNO).
     ///
-    /// Es funcional pero sencilla a proposito: el equipo de interfaz debe llevar aqui el
-    /// acomodo de Ventana (manos en los 4 lados, cartas giradas, elevacion al pasar el mouse)
-    /// con los rivales boca abajo. Todo se crea en codigo (regla del equipo, sin diseñador).
+    /// Acomodo, como la mesa local: yo abajo; los rivales a la derecha, arriba y a la izquierda en
+    /// el orden en que les toca, con sus cartas boca abajo. Si se cae la conexion durante una
+    /// partida, intenta reconectarse sola con el token. Todo se crea en codigo (regla del equipo).
     /// </summary>
     public class VentanaRed : Form
     {
         private const int AnchoCarta = 80;
         private const int AltoCarta = 120;
+        // Cuanto "sube" una carta jugable al pasar el mouse sobre ella
+        private const int Elevacion = 12;
         private static readonly Size TamañoCentro = new Size(100, 150);
-
-        private readonly ClienteRed cliente;
-        // No es readonly: cambia si el servidor rechaza el nombre y se escribe otro
-        private string miNombre;
-        // Ultimo estado recibido (null mientras se espera a los demas jugadores)
-        private EstadoPartida estado;
-        // El servidor ya nos dio lugar en la mesa
-        private bool sentado;
-        // Ya llego "fin" o se cerro la ventana: la desconexion que sigue es normal
-        private bool terminado;
 
         // Cartas boca abajo de los rivales (mas chicas que las de mi mano)
         private const int AnchoRival = 60;
         private const int AltoRival = 90;
+        // Ancho de las zonas de los rivales de los lados (cartas acostadas y el nombre en dos lineas)
+        private const int AnchoZonaLado = 150;
 
-        private readonly Panel contenedorRivales;
+        private readonly ClienteRed cliente;
+        // No es readonly: cambia si el servidor rechaza el nombre y se escribe otro
+        private string miNombre;
+        // Ultimo estado recibido (null fuera de una partida)
+        private EstadoPartida estado;
+        // El servidor ya nos dio lugar en la mesa
+        private bool sentado;
+        // Ya llego "fin" o se cerro la ventana: una desconexion no se intenta recuperar
+        private bool terminado;
+        // Se cayo la conexion y se esta intentando volver
+        private bool reconectando;
+        // La conexion se perdio sin recuperarse (para no ofrecer otra partida sin servidor)
+        private bool perdiConexion;
+
+        // Zonas de los rivales: el 1o despues de mi va a la derecha, el 2o arriba, el 3o a la izquierda
+        private readonly Panel zonaDerecha;
+        private readonly Panel zonaArriba;
+        private readonly Panel zonaIzquierda;
         private readonly Label etiquetaMia;
         private readonly FlowLayoutPanel panelMano;
         private readonly Panel centro;
@@ -46,18 +58,21 @@ namespace Juego_UNO
         private readonly Button botonUno;
         private readonly ListBox historial;
         private readonly SalaEspera salaEspera;
+        private readonly PictureBox pictureBoxMazo;
+        private readonly Label etiquetaMazo;
+
+        // Aviso en la mesa (errores y avisos importantes); se oculta solo
+        private readonly Label etiquetaAviso;
+        private readonly Timer temporizadorAviso = new Timer { Interval = 4000 };
 
         // Cuenta regresiva del UNO. El servidor lleva el tiempo de verdad (4 s) y solo manda
         // quien debe decir UNO (jugador_en_uno); aqui se cuenta para que todos lo vean.
         private const int SegundosParaUno = 4;
-        private readonly System.Windows.Forms.Timer temporizadorUno = new System.Windows.Forms.Timer { Interval = 1000 };
+        private readonly Timer temporizadorUno = new Timer { Interval = 1000 };
         private int segundosUno;
         // Asiento que esta contando ahora (-1 = nadie)
         private int asientoEnUno = -1;
-        private readonly PictureBox pictureBoxMazo;
-        private readonly Label etiquetaMazo;
         private Form formAlertaActiva;
-
 
         public VentanaRed(ClienteRed cliente, string miNombre)
         {
@@ -67,13 +82,13 @@ namespace Juego_UNO
             Text = $"UNO en red - {miNombre}";
             Icon = (Icon)new ComponentResourceManager(typeof(Ventana)).GetObject("$this.Icon");
             ClientSize = new Size(1150, 720);
-            MinimumSize = new Size(900, 600);
+            MinimumSize = new Size(1000, 700);
             StartPosition = FormStartPosition.CenterScreen;
             BackColor = Color.FromArgb(25, 95, 45);
             Font = new Font("Segoe UI", 10);
             DoubleBuffered = true;
 
-            // Centro: mensaje de estado, mazo (boton Robar), descarte, color y botones
+            // Centro: mensaje de estado, mazo, descarte, color, botones y avisos
             centro = new Panel { Dock = DockStyle.Fill };
             etiquetaEstado = new Label
             {
@@ -121,20 +136,32 @@ namespace Juego_UNO
             botonUno.FlatAppearance.BorderSize = 3;
             botonUno.FlatAppearance.MouseOverBackColor = Color.Yellow;
             botonUno.Click += (s, e) => cliente.DecirUno();
+
+            etiquetaAviso = new Label
+            {
+                AutoSize = true,
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 11, FontStyle.Bold),
+                Padding = new Padding(12, 6, 12, 6),
+                Visible = false
+            };
+            temporizadorAviso.Tick += (s, e) =>
+            {
+                temporizadorAviso.Stop();
+                etiquetaAviso.Visible = false;
+            };
+
             // Sala de espera: los 4 lugares mientras llegan los jugadores
             salaEspera = new SalaEspera();
+            centro.Controls.Add(etiquetaAviso);
             centro.Controls.Add(salaEspera);
             centro.Controls.AddRange(new Control[] { pictureBoxMazo, etiquetaMazo, pictureBoxDescarte, etiquetaColor, botonPasar, botonUno, etiquetaEstado });
             centro.Resize += (s, e) => AcomodarCentro();
 
-            // Arriba: los rivales, en el orden en que les toca despues de mi, con sus cartas boca abajo
-            contenedorRivales = new Panel
-            {
-                Dock = DockStyle.Top,
-                Height = AltoRival + 50,
-                BackColor = Color.FromArgb(40, 0, 0, 0)
-            };
-            contenedorRivales.Resize += (s, e) => AcomodarRivales();
+            // Rivales: solo se ven durante la partida
+            zonaArriba = CrearZonaRival(DockStyle.Top, AltoRival + 50);
+            zonaDerecha = CrearZonaRival(DockStyle.Right, AnchoZonaLado);
+            zonaIzquierda = CrearZonaRival(DockStyle.Left, AnchoZonaLado);
 
             // Abajo: mi mano, boca arriba. Se asigna a los campos (no a variables nuevas)
             // porque Dibujar los usa.
@@ -158,10 +185,14 @@ namespace Juego_UNO
                 IntegralHeight = false
             };
 
-            // El que llena el espacio va primero: los demas se acomodan en los bordes
+            // Los bordes se acomodan del ultimo agregado al primero: el historial ocupa toda la
+            // altura a la derecha, el rival de arriba todo el ancho que queda, luego mi mano abajo,
+            // los rivales de los lados entre ambos, y el centro llena lo que sobra.
             Controls.Add(centro);
+            Controls.Add(zonaIzquierda);
+            Controls.Add(zonaDerecha);
             Controls.Add(abajo);
-            Controls.Add(contenedorRivales);
+            Controls.Add(zonaArriba);
             Controls.Add(historial);
 
             cliente.MensajeRecibido += AlRecibir;
@@ -173,6 +204,8 @@ namespace Juego_UNO
                 terminado = true;
                 temporizadorUno.Stop();
                 temporizadorUno.Dispose();
+                temporizadorAviso.Stop();
+                temporizadorAviso.Dispose();
                 cliente.MensajeRecibido -= AlRecibir;
                 cliente.Desconectado -= AlDesconectarse;
                 cliente.Dispose();
@@ -217,87 +250,125 @@ namespace Juego_UNO
             return (panelControl, flowMano, etiqueta);
         }
 
+        private Panel CrearZonaRival(DockStyle lado, int grosor)
+        {
+            var zona = new Panel
+            {
+                Dock = lado,
+                BorderStyle = BorderStyle.FixedSingle,
+                Padding = new Padding(5),
+                BackColor = Color.FromArgb(60, 0, 0, 0),
+                Visible = false
+            };
+            if (lado == DockStyle.Top)
+                zona.Height = grosor;
+            else
+                zona.Width = grosor;
+            zona.Resize += (s, e) => AcomodarRivales();
+            return zona;
+        }
+
+        private Panel ZonaRival(int lugaresDespues)
+        {
+            switch (lugaresDespues)
+            {
+                case 1: return zonaDerecha;
+                case 2: return zonaArriba;
+                default: return zonaIzquierda;
+            }
+        }
+
+        private static RotateFlipType GiroZona(Panel zona, Panel derecha, Panel izquierda)
+        {
+            if (zona == derecha) return RotateFlipType.Rotate270FlipNone;
+            if (zona == izquierda) return RotateFlipType.Rotate90FlipNone;
+            return RotateFlipType.RotateNoneFlipNone;
+        }
+
         /// <summary>
-        /// Un panel por rival, de izquierda a derecha en el orden en que les toca despues de mi,
-        /// con el reverso de cada una de sus cartas (el servidor solo manda cuantas tienen).
+        /// Cada rival en su zona, en el orden en que les toca despues de mi, con el reverso de cada
+        /// una de sus cartas (el servidor solo manda cuantas tienen). Las de los lados van acostadas.
         /// </summary>
         private void DibujarRivales(EstadoPartida e)
         {
-            // Dispose libera los controles anteriores; Controls.Clear() solo los quitaria
-            foreach (var anterior in contenedorRivales.Controls.Cast<Control>().ToList())
-                anterior.Dispose();
-
             int n = e.Jugadores.Count;
-            contenedorRivales.SuspendLayout();
-            for (int k = 1; k < n; k++)
+            for (int k = 1; k <= 3; k++)
             {
+                var zona = ZonaRival(k);
+                // Dispose libera los controles anteriores; Controls.Clear() solo los quitaria
+                foreach (var anterior in zona.Controls.Cast<Control>().ToList())
+                    anterior.Dispose();
+                zona.Visible = k < n;
+                if (k >= n)
+                    continue;
+
                 var rival = e.Jugadores[(e.MiAsiento + k) % n];
                 bool suTurno = e.Ganador < 0 && rival.Asiento == e.Turno;
+                bool lado = zona != zonaArriba;
+                string marca = suTurno ? "● " : "";
+                string cartas = TextoCartas(rival.Cartas, rival.Asiento != e.JugadorEnUno);
 
                 // Fondo dorado tenue si es su turno
-                var panelRival = new Panel
-                {
-                    BackColor = suTurno ? Color.FromArgb(100, 255, 215, 0) : Color.FromArgb(60, 0, 0, 0),
-                    BorderStyle = BorderStyle.FixedSingle,
-                    Padding = new Padding(5)
-                };
+                zona.BackColor = suTurno ? Color.FromArgb(100, 255, 215, 0) : Color.FromArgb(60, 0, 0, 0);
                 var etiqueta = new Label
                 {
                     Dock = DockStyle.Top,
-                    Height = 28,
+                    Height = lado ? 46 : 28,
                     ForeColor = suTurno ? Color.Gold : Color.White,
-                    Font = new Font("Segoe UI", 11, FontStyle.Bold),
-                    Padding = new Padding(10, 4, 0, 0),
-                    Text = $"{(suTurno ? "● " : "")}{rival.Nombre} · {TextoCartas(rival.Cartas, rival.Asiento != e.JugadorEnUno)}"
+                    Font = new Font("Segoe UI", lado ? 10 : 11, FontStyle.Bold),
+                    Padding = new Padding(lado ? 4 : 10, 4, 0, 0),
+                    AutoEllipsis = true,
+                    Text = lado ? $"{marca}{rival.Nombre}\n{cartas}" : $"{marca}{rival.Nombre} · {cartas}"
                 };
                 // Las cartas se acomodan a mano (AcomodarRivales) para poder encimarlas
                 var abanico = new Panel { Dock = DockStyle.Fill };
+                var giro = GiroZona(zona, zonaDerecha, zonaIzquierda);
+                var tamaño = lado ? new Size(AltoRival, AnchoRival) : new Size(AnchoRival, AltoRival);
                 for (int i = 0; i < rival.Cartas; i++)
                 {
                     abanico.Controls.Add(new PictureBox
                     {
-                        Size = new Size(AnchoRival, AltoRival),
+                        Size = tamaño,
                         SizeMode = PictureBoxSizeMode.Zoom,
                         BackColor = Color.Transparent,
-                        Image = ReversoCarta.Obtener()
+                        Image = ReversoCarta.Obtener(giro)
                     });
                 }
 
-                panelRival.Controls.Add(abanico);
-                panelRival.Controls.Add(etiqueta);
-                contenedorRivales.Controls.Add(panelRival);
+                zona.Controls.Add(abanico);
+                zona.Controls.Add(etiqueta);
             }
-            contenedorRivales.ResumeLayout();
             AcomodarRivales();
         }
 
         /// <summary>
-        /// Reparte el ancho entre los rivales y encima sus cartas lo necesario para que quepan.
-        /// Se llama al redibujar y cuando cambia el tamaño de la ventana.
+        /// Encima las cartas de cada rival lo necesario para que quepan, centradas en su zona
+        /// (en fila arriba, en columna a los lados). Se llama al redibujar y al cambiar de tamaño.
         /// </summary>
         private void AcomodarRivales()
         {
-            var paneles = contenedorRivales.Controls.Cast<Control>().ToList();
-            if (paneles.Count == 0)
-                return;
-
-            int ancho = contenedorRivales.ClientSize.Width / paneles.Count;
-            for (int i = 0; i < paneles.Count; i++)
+            foreach (var zona in new[] { zonaDerecha, zonaArriba, zonaIzquierda })
             {
-                paneles[i].Bounds = new Rectangle(i * ancho, 0, ancho, contenedorRivales.ClientSize.Height);
-
-                var abanico = paneles[i].Controls.OfType<Panel>().First();
+                var abanico = zona.Controls.OfType<Panel>().FirstOrDefault();
+                if (abanico == null)
+                    continue;
                 var cartas = abanico.Controls.Cast<Control>().ToList();
                 if (cartas.Count == 0)
                     continue;
 
-                // Separacion entre cartas: completa si caben, encimadas si no (minimo 4 px)
+                // En las dos orientaciones, el lado de la carta que se encima mide AnchoRival
+                bool lado = zona != zonaArriba;
                 const int margen = 8;
-                int libre = abanico.ClientSize.Width - 2 * margen - AnchoRival;
-                int paso = cartas.Count == 1 ? 0 : Math.Max(4, Math.Min(AnchoRival + 4, libre / (cartas.Count - 1)));
-                int y = Math.Max(0, (abanico.ClientSize.Height - AltoRival) / 2);
+                int espacio = lado ? abanico.ClientSize.Height : abanico.ClientSize.Width;
+                int paso = cartas.Count == 1 ? 0
+                    : Math.Max(4, Math.Min(AnchoRival + 4, (espacio - 2 * margen - AnchoRival) / (cartas.Count - 1)));
+                int inicio = Math.Max(margen, (espacio - (AnchoRival + paso * (cartas.Count - 1))) / 2);
                 for (int c = 0; c < cartas.Count; c++)
-                    cartas[c].Location = new Point(margen + c * paso, y);
+                {
+                    cartas[c].Location = lado
+                        ? new Point(Math.Max(0, (abanico.ClientSize.Width - AltoRival) / 2), inicio + c * paso)
+                        : new Point(inicio + c * paso, Math.Max(0, (abanico.ClientSize.Height - AltoRival) / 2));
+                }
             }
         }
 
@@ -333,14 +404,17 @@ namespace Juego_UNO
                 case TipoMensaje.Bienvenida:
                     sentado = true;
                     Agregar(mensaje.Texto);
-                    etiquetaEstado.Text = "Esperando a los demás jugadores...";
+                    // Al reconectarse a una partida, el estado llega enseguida y redibuja todo
+                    if (estado == null)
+                        etiquetaEstado.Text = "Esperando a los demás jugadores...";
                     break;
 
                 case TipoMensaje.Espera:
                     Agregar(mensaje.Texto);
                     var sentados = mensaje.Nombres ?? new List<string>();
                     salaEspera.Mostrar(sentados, miNombre);
-                    etiquetaEstado.Text = $"Esperando jugadores ({sentados.Count}/4)...";
+                    if (estado == null)
+                        etiquetaEstado.Text = $"Esperando jugadores ({sentados.Count}/4)...";
                     AcomodarCentro();
                     break;
 
@@ -351,55 +425,103 @@ namespace Juego_UNO
 
                 case TipoMensaje.Aviso:
                     Agregar(mensaje.Texto);
+                    if (mensaje.Codigo == CodigoAviso.Importante)
+                        MostrarAviso(mensaje.Texto, false);
                     break;
 
                 case TipoMensaje.Error:
                     Agregar("⚠ " + mensaje.Texto);
-                    if (!sentado)
+                    if (mensaje.Codigo == CodigoError.ReconexionInvalida)
+                    {
+                        terminado = true;
+                        reconectando = false;
+                        MessageBox.Show(this, mensaje.Texto, "UNO", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        Close();
+                    }
+                    else if (!sentado)
+                    {
                         RechazoAlUnirse(mensaje.Texto, mensaje.Codigo == CodigoError.NombreInvalido);
+                    }
+                    else
+                    {
+                        MostrarAviso(mensaje.Texto, true);
+                    }
                     break;
 
                 case TipoMensaje.Fin:
-                    terminado = true;
-                    temporizadorUno.Stop();
-                    Agregar(mensaje.Texto);
-                    if (formAlertaActiva != null && !formAlertaActiva.IsDisposed)
-                    {
-                        formAlertaActiva.DialogResult = DialogResult.Cancel;
-                        formAlertaActiva.Close();
-                    }
-                    this.BeginInvoke(new Action(() =>
-                    {
-                        if (estado != null && estado.Ganador >= 0)
-                        {
-                            using (var anuncio = new FormGanador(estado.Jugadores[estado.Ganador].Nombre, estado.IdPartida))
-                                anuncio.ShowDialog(this);
-                        }
-                        else
-                        {
-                            using (var pantallaFin = new FormFin(mensaje.Texto))
-                                pantallaFin.ShowDialog(this);
-                        }
-                        Close();
-                    }));
+                    AlTerminarPartida(mensaje);
                     break;
+
                 case TipoMensaje.AlertaInactividad:
-                    this.BeginInvoke(new Action(() => 
+                    BeginInvoke(new Action(() =>
                     {
-                        if (formAlertaActiva != null) return;
+                        if (formAlertaActiva != null || IsDisposed) return;
                         using (var ventana = new FormInactividad())
                         {
                             formAlertaActiva = ventana;
                             var resultado = ventana.ShowDialog(this);
                             if (resultado == DialogResult.OK)
-                            {
                                 cliente.SigoAqui();
-                            }
                         }
                         formAlertaActiva = null;
                     }));
                     break;
             }
+        }
+
+        /// <summary>
+        /// Termino la partida: se anuncia y, si no nos expulsaron, se pregunta si jugamos otra con
+        /// la misma mesa. Si si, la ventana vuelve a la sala de espera; si no, se cierra.
+        /// </summary>
+        private void AlTerminarPartida(Mensaje mensaje)
+        {
+            terminado = true;
+            temporizadorUno.Stop();
+            asientoEnUno = -1;
+            Agregar(mensaje.Texto);
+            CerrarAlerta();
+            bool expulsado = mensaje.Codigo == CodigoFin.Expulsado;
+            var ultimo = estado;
+
+            BeginInvoke(new Action(() =>
+            {
+                if (IsDisposed) return;
+                if (ultimo != null && ultimo.Ganador >= 0)
+                {
+                    using (var anuncio = new FormGanador(ultimo.Jugadores[ultimo.Ganador].Nombre, ultimo.IdPartida))
+                        anuncio.ShowDialog(this);
+                }
+                else
+                {
+                    // Sin ganador: alguien se desconecto o fue expulsado
+                    using (var pantallaFin = new FormFin(mensaje.Texto))
+                        pantallaFin.ShowDialog(this);
+                }
+                if (IsDisposed) return;
+
+                bool otra = false;
+                if (!expulsado && !perdiConexion)
+                {
+                    using (var pregunta = new FormOtraPartida())
+                        otra = pregunta.ShowDialog(this) == DialogResult.OK;
+                }
+                if (IsDisposed) return;
+
+                if (!otra || perdiConexion)
+                {
+                    if (otra)
+                        MessageBox.Show(this, "Se perdió la conexión con el servidor.", "UNO", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    Close();
+                    return;
+                }
+
+                // De vuelta a la sala de espera, con la misma conexion
+                terminado = false;
+                estado = null;
+                Dibujar();
+                etiquetaEstado.Text = "Esperando a que los demás confirmen...";
+                cliente.OtraPartida();
+            }));
         }
 
         /// <summary>
@@ -434,22 +556,67 @@ namespace Juego_UNO
             cliente.Unirse(miNombre);
         }
 
-        private void AlDesconectarse()
+        /// <summary>
+        /// Se cayo la conexion. Durante una partida se intenta volver con el token por
+        /// Tiempos.SegundosParaReconectar (el servidor guarda el lugar ese tiempo); fuera de una
+        /// partida no hay lugar guardado y se regresa al inicio.
+        /// </summary>
+        private async void AlDesconectarse()
         {
-            if (terminado || IsDisposed)
+            if (IsDisposed)
                 return;
-            terminado = true;
+            perdiConexion = true;
+            if (terminado || reconectando)
+                return;
 
+            CerrarAlerta();
+            if (estado == null || cliente.Token == null)
+            {
+                terminado = true;
+                MessageBox.Show(this, "Se perdió la conexión con el servidor.", "UNO", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Close();
+                return;
+            }
+
+            reconectando = true;
+            Agregar("⚠ Se perdió la conexión. Reconectando...");
+            var limite = DateTime.Now.AddSeconds(Tiempos.SegundosParaReconectar);
+            while (DateTime.Now < limite)
+            {
+                int quedan = (int)Math.Ceiling((limite - DateTime.Now).TotalSeconds);
+                etiquetaEstado.Text = $"Reconectando... ({quedan} s)";
+                MostrarAviso("Se perdió la conexión con el servidor. Reconectando...", true);
+
+                bool conectado = await Task.Run(() => cliente.Reconectar());
+                if (IsDisposed || terminado)
+                    return;
+                if (conectado)
+                {
+                    // El servidor contesta con bienvenida y el estado (o con reconexion_invalida)
+                    reconectando = false;
+                    perdiConexion = false;
+                    Agregar("Reconectado.");
+                    MostrarAviso("Reconectado.", false);
+                    return;
+                }
+                await Task.Delay(2000);
+                if (IsDisposed || terminado)
+                    return;
+            }
+
+            reconectando = false;
+            terminado = true;
+            MessageBox.Show(this, "No se pudo reconectar con el servidor.", "UNO", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            Close();
+        }
+
+        private void CerrarAlerta()
+        {
             if (formAlertaActiva != null && !formAlertaActiva.IsDisposed)
             {
                 formAlertaActiva.DialogResult = DialogResult.Cancel;
                 formAlertaActiva.Close();
             }
-            this.BeginInvoke(new Action(() =>
-            {
-                MessageBox.Show(this, "Se perdió la conexión con el servidor.", "UNO", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                Close();
-            }));
         }
 
         // ============================================================
@@ -462,9 +629,9 @@ namespace Juego_UNO
         /// </summary>
         private void TirarCarta(Carta carta)
         {
-            if (estado == null || !estado.EsMiTurno)
+            if (estado == null || !estado.EsMiTurno || reconectando)
             {
-                Agregar("⚠ " + MotivoNoActuar());
+                AvisoLocal(MotivoNoActuar());
                 return;
             }
 
@@ -486,19 +653,21 @@ namespace Juego_UNO
         /// </summary>
         private void RobarCarta()
         {
-            if (estado == null || !estado.EsMiTurno)
+            if (estado == null || !estado.EsMiTurno || reconectando)
             {
-                Agregar("⚠ " + MotivoNoActuar());
+                AvisoLocal(MotivoNoActuar());
                 return;
             }
             cliente.Robar();
         }
 
         /// <summary>
-        /// Por que no se puede jugar ahora, para explicarlo en el historial.
+        /// Por que no se puede jugar ahora, para explicarlo en la mesa y en el historial.
         /// </summary>
         private string MotivoNoActuar()
         {
+            if (reconectando)
+                return "Espera: se está reconectando con el servidor.";
             if (estado == null)
                 return "La partida todavía no empieza.";
             if (estado.JugadorEnUno == estado.MiAsiento)
@@ -506,6 +675,12 @@ namespace Juego_UNO
             if (estado.JugadorEnUno >= 0)
                 return $"Espera: {estado.Jugadores[estado.JugadorEnUno].Nombre} debe decir UNO.";
             return "No es tu turno.";
+        }
+
+        private void AvisoLocal(string texto)
+        {
+            Agregar("⚠ " + texto);
+            MostrarAviso(texto, true);
         }
 
         // ============================================================
@@ -524,7 +699,19 @@ namespace Juego_UNO
             botonUno.Visible = hayPartida && estado.JugadorEnUno == estado.MiAsiento;
             if (!hayPartida)
             {
+                // Sala de espera: sin rivales ni cartas
+                foreach (var zona in new[] { zonaDerecha, zonaArriba, zonaIzquierda })
+                {
+                    foreach (var anterior in zona.Controls.Cast<Control>().ToList())
+                        anterior.Dispose();
+                    zona.Visible = false;
+                }
+                foreach (var anterior in panelMano.Controls.Cast<Control>().ToList())
+                    anterior.Dispose();
                 etiquetaMia.Text = miNombre;
+                etiquetaMia.ForeColor = Color.White;
+                Text = $"UNO en red - {miNombre}";
+                AcomodarCentro();
                 return;
             }
 
@@ -534,7 +721,7 @@ namespace Juego_UNO
             // Rivales: sus cartas boca abajo (sus cartas no llegan al cliente, solo cuantas son)
             DibujarRivales(e);
 
-            // Mi mano
+            // Mi mano: las que se pueden tirar llevan marco dorado y suben al pasar el mouse
             etiquetaMia.Text = $"{(e.EsMiTurno ? "● " : "")}{miNombre} (tú) · {TextoCartas(e.MiMano.Count, e.MiAsiento != e.JugadorEnUno)}";
             etiquetaMia.ForeColor = e.EsMiTurno ? Color.Yellow : Color.White;
             panelMano.SuspendLayout();
@@ -542,14 +729,22 @@ namespace Juego_UNO
                 anterior.Dispose();
             foreach (var carta in e.MiMano)
             {
+                bool jugable = e.EsMiTurno && Juego.EsJugable(carta, e.CartaArriba, e.ColorActual);
                 var pic = new PictureBox
                 {
                     Image = ImagenesCartas.Obtener(carta),
                     SizeMode = PictureBoxSizeMode.Zoom,
                     Size = new Size(AnchoCarta, AltoCarta),
-                    Margin = new Padding(3),
-                    Cursor = e.EsMiTurno ? Cursors.Hand : Cursors.Default
+                    Margin = MargenCarta(false),
+                    Cursor = jugable ? Cursors.Hand : Cursors.Default
                 };
+                if (jugable)
+                {
+                    pic.BackColor = Color.Gold;
+                    pic.Padding = new Padding(3);
+                    pic.MouseEnter += (s, ev) => pic.Margin = MargenCarta(true);
+                    pic.MouseLeave += (s, ev) => pic.Margin = MargenCarta(false);
+                }
                 var esta = carta;
                 pic.DoubleClick += (s, ev) => TirarCarta(esta);
                 panelMano.Controls.Add(pic);
@@ -583,6 +778,28 @@ namespace Juego_UNO
             AcomodarCentro();
         }
 
+        /// <summary>
+        /// Margen de una carta de mi mano. Al elevarla, el espacio de arriba se pasa abajo para
+        /// que la carta suba sin mover a las demas.
+        /// </summary>
+        private static Padding MargenCarta(bool elevada)
+        {
+            return elevada ? new Padding(3, 0, 3, Elevacion) : new Padding(3, Elevacion, 3, 0);
+        }
+
+        /// <summary>
+        /// Aviso en la mesa (ademas del historial): rojo para errores, ambar para lo importante.
+        /// </summary>
+        private void MostrarAviso(string texto, bool esError)
+        {
+            etiquetaAviso.Text = texto;
+            etiquetaAviso.BackColor = esError ? Color.FromArgb(230, 160, 25, 25) : Color.FromArgb(230, 190, 120, 0);
+            etiquetaAviso.Visible = true;
+            etiquetaAviso.BringToFront();
+            AcomodarCentro();
+            temporizadorAviso.Stop();
+            temporizadorAviso.Start();
+        }
 
         // ============================================================
         // Cuenta regresiva del UNO
@@ -650,9 +867,17 @@ namespace Juego_UNO
             etiquetaColor.Location = new Point(pictureBoxDescarte.Left + (pictureBoxDescarte.Width - etiquetaColor.Width) / 2, pictureBoxDescarte.Bottom + 10);
             etiquetaMazo.Location = new Point(pictureBoxMazo.Left + (pictureBoxMazo.Width - etiquetaMazo.Width) / 2, pictureBoxMazo.Bottom + 10);
             botonPasar.Location = new Point(pictureBoxMazo.Left + (pictureBoxMazo.Width - botonPasar.Width) / 2, etiquetaMazo.Bottom + 8);
-            // Con la ventana chica se acerca al descarte para no salirse del panel
-            int xUno = Math.Min(pictureBoxDescarte.Right + 25, centro.ClientSize.Width - botonUno.Width - 4);
-            botonUno.Location = new Point(xUno, pictureBoxDescarte.Top + (pictureBoxDescarte.Height - botonUno.Height) / 2);
+
+            // ¡UNO! a la derecha del descarte; si no cabe (ventana angosta), centrado arriba de las cartas
+            int xUno = pictureBoxDescarte.Right + 25;
+            if (xUno + botonUno.Width <= centro.ClientSize.Width - 4)
+                botonUno.Location = new Point(xUno, pictureBoxDescarte.Top + (pictureBoxDescarte.Height - botonUno.Height) / 2);
+            else
+                botonUno.Location = new Point(cx - botonUno.Width / 2, Math.Max(etiquetaEstado.Bottom, pictureBoxDescarte.Top - botonUno.Height - 6));
+
+            // Aviso: abajo al centro, sin salirse del panel
+            etiquetaAviso.MaximumSize = new Size(Math.Max(200, centro.ClientSize.Width - 30), 0);
+            etiquetaAviso.Location = new Point(cx - etiquetaAviso.Width / 2, centro.ClientSize.Height - etiquetaAviso.Height - 8);
         }
 
         private void Agregar(string texto)

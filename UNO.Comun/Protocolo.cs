@@ -16,15 +16,19 @@ namespace Juego_UNO
         public const string Pasar = "pasar";
         public const string DecirUno = "decir_uno";
         public const string SigoAqui = "sigo_aqui";    // responde a alerta_inactividad
+        public const string Reconectar = "reconectar"; // token: recupera tu lugar tras perder la conexion
+        public const string OtraPartida = "otra_partida"; // despues de "fin": quiero jugar otra en esta mesa
+        public const string Pong = "pong";             // responde a ping (lo hace ClienteRed solo)
 
         // Servidor -> cliente
-        public const string Bienvenida = "bienvenida"; // posicion (asiento), texto
+        public const string Bienvenida = "bienvenida"; // posicion (asiento), token, texto
         public const string Espera = "espera";         // nombres: quienes estan en la sala, en orden de lugar; texto
         public const string Estado = "estado";         // estado: lo que ve ese jugador
-        public const string Aviso = "aviso";           // texto: lo que paso (para el historial)
+        public const string Aviso = "aviso";           // texto: lo que paso (para el historial); codigo (ver CodigoAviso)
         public const string Error = "error";           // texto: por que se rechazo el mensaje; codigo (ver CodigoError)
-        public const string Fin = "fin";               // texto: termino la partida (ganador o abandono)
+        public const string Fin = "fin";               // texto: termino la partida (ganador o abandono); codigo (ver CodigoFin)
         public const string AlertaInactividad = "alerta_inactividad"; // texto: confirma con sigo_aqui o se te expulsa
+        public const string Ping = "ping";             // ¿sigues ahi? (el cliente responde pong)
     }
 
     /// <summary>
@@ -35,6 +39,39 @@ namespace Juego_UNO
     {
         // Se rechazo el nombre al unirse: se puede volver a intentar con otro en la misma conexion
         public const string NombreInvalido = "nombre_invalido";
+        // El token de "reconectar" ya no corresponde a ningun lugar (la partida termino o se espero demasiado)
+        public const string ReconexionInvalida = "reconexion_invalida";
+    }
+
+    /// <summary>
+    /// Valores del campo "codigo" de un aviso.
+    /// </summary>
+    public static class CodigoAviso
+    {
+        // Algo que todos deben notar (desconexiones, inactividad, castigos): se muestra en la mesa
+        public const string Importante = "importante";
+    }
+
+    /// <summary>
+    /// Valores del campo "codigo" de un fin.
+    /// </summary>
+    public static class CodigoFin
+    {
+        // Se saco al jugador de la mesa (por inactividad): no puede pedir otra partida
+        public const string Expulsado = "expulsado";
+    }
+
+    /// <summary>
+    /// Tiempos que cliente y servidor deben usar igual.
+    /// </summary>
+    public static class Tiempos
+    {
+        // Cada cuanto el servidor manda ping a cada jugador
+        public const int SegundosLatido = 5;
+        // Sin recibir nada en este tiempo, la conexion se da por muerta (de los dos lados)
+        public const int SegundosSinRespuesta = 15;
+        // Cuanto se le guarda el lugar a quien perdio la conexion con la partida empezada
+        public const int SegundosParaReconectar = 60;
     }
 
     /// <summary>
@@ -50,6 +87,7 @@ namespace Juego_UNO
         public int? Posicion { get; set; }
         public string Texto { get; set; }
         public string Codigo { get; set; }
+        public string Token { get; set; }
         public List<string> Nombres { get; set; }
         public EstadoPartida Estado { get; set; }
     }
