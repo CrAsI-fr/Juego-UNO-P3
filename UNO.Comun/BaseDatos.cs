@@ -149,6 +149,55 @@ namespace Juego_UNO
         }
 
         // ============================================================
+        // Historial (solo lectura)
+        // ============================================================
+
+        /// <summary>
+        /// Las partidas terminadas con ganador, de la mas reciente a la mas vieja (por inicio).
+        /// Las abandonadas no aparecen: la API solo las lista en /ganadores.
+        /// GET /ganadores
+        /// </summary>
+        public static List<PartidaRegistrada> ObtenerPartidas()
+        {
+            return Get<List<GanadorApi>>("ganadores")
+                .Select(p => new PartidaRegistrada
+                {
+                    IdPartida = p.IdPartida,
+                    Inicio = p.FechaInicio,
+                    Fin = p.FechaFin,
+                    Ganador = p.Ganador
+                })
+                .OrderByDescending(p => p.Inicio)
+                .ThenByDescending(p => p.IdPartida)
+                .ToList();
+        }
+
+        /// <summary>
+        /// Los movimientos de una partida, en orden (vista_log).
+        /// GET /partidas/{id}/log
+        /// </summary>
+        public static List<MovimientoRegistrado> ObtenerMovimientos(int idPartida)
+        {
+            return Get<List<LogApi>>($"partidas/{idPartida}/log")
+                .Select(m => new MovimientoRegistrado
+                {
+                    Numero = m.NumJugada,
+                    FechaHora = m.FechaHora,
+                    Jugador = m.Jugador,
+                    Accion = m.TipoAccion,
+                    Carta = m.TipoCarta == null ? null : new Carta
+                    {
+                        Tipo = m.TipoCarta,
+                        Color = m.ColorCarta,
+                        Efecto = m.Efecto,
+                        Numero = m.NumCarta
+                    },
+                    ColorElegido = m.ColorElegido
+                })
+                .ToList();
+        }
+
+        // ============================================================
         // Comunicacion con la API
         // ============================================================
 
@@ -243,6 +292,27 @@ namespace Juego_UNO
         private class PartidaApi
         {
             [JsonProperty("id_partida")] public int IdPartida { get; set; }
+        }
+
+        private class GanadorApi
+        {
+            [JsonProperty("id_partida")] public int IdPartida { get; set; }
+            [JsonProperty("fecha_inicio")] public DateTime FechaInicio { get; set; }
+            [JsonProperty("fecha_fin")] public DateTime FechaFin { get; set; }
+            [JsonProperty("ganador")] public string Ganador { get; set; }
+        }
+
+        private class LogApi
+        {
+            [JsonProperty("num_jugada")] public int NumJugada { get; set; }
+            [JsonProperty("fecha_hora")] public DateTime FechaHora { get; set; }
+            [JsonProperty("jugador")] public string Jugador { get; set; }
+            [JsonProperty("tipo_accion")] public string TipoAccion { get; set; }
+            [JsonProperty("tipo_carta")] public string TipoCarta { get; set; }
+            [JsonProperty("color_carta")] public string ColorCarta { get; set; }
+            [JsonProperty("num_carta")] public int? NumCarta { get; set; }
+            [JsonProperty("efecto")] public string Efecto { get; set; }
+            [JsonProperty("color_elegido")] public string ColorElegido { get; set; }
         }
 
         private class PosicionApi
