@@ -80,6 +80,9 @@
     <Compile Include="FormInicio.Designer.cs">
       <DependentUpon>FormInicio.cs</DependentUpon>
     </Compile>
+    <Compile Include="FormHistorial.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="FormInactividad.cs">
       <SubType>Form</SubType>
     </Compile>

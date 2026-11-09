@@ -16,10 +16,14 @@ namespace Juego_UNO
         private static readonly Color Amarillo = Color.FromArgb(255, 222, 0);
         private static readonly Color Rojo = Color.FromArgb(220, 30, 30);
         private static readonly Color Azul = Color.FromArgb(0, 114, 188);
+        private static readonly Color Verde = Color.FromArgb(0, 150, 70);
 
         private readonly BotonUno botonJugar;
         private readonly BotonUno botonRed;
+        private readonly BotonUno botonHistorial;
         private readonly BotonUno botonSalir;
+        // Ventana de historial abierta (una sola a la vez)
+        private FormHistorial historial;
         // Nombre usado en la ultima partida en red, para sugerirlo
         private string nombreRed;
         private readonly Label etiquetaEstado;
@@ -53,6 +57,15 @@ namespace Juego_UNO
             };
             botonRed.Click += async (s, e) => await JugarEnRed();
 
+            // El historial se lee de la API de esta PC: sin API se desactiva, igual que JUGAR
+            botonHistorial = new BotonUno
+            {
+                Text = "HISTORIAL",
+                Relleno = Verde,
+                ForeColor = Color.White
+            };
+            botonHistorial.Click += (s, e) => AbrirHistorial();
+
             botonSalir = new BotonUno
             {
                 Text = "SALIR",
@@ -72,6 +85,7 @@ namespace Juego_UNO
 
             Controls.Add(botonJugar);
             Controls.Add(botonRed);
+            Controls.Add(botonHistorial);
             Controls.Add(botonSalir);
             Controls.Add(etiquetaEstado);
 
@@ -99,19 +113,22 @@ namespace Juego_UNO
 
             // Botones debajo del logo (el logo llega hasta ~74% de la altura de la imagen)
             int altoBoton = alto * 11 / 100;
-            botonJugar.Size = new Size(ancho * 22 / 100, altoBoton);
-            botonRed.Size = new Size(ancho * 22 / 100, altoBoton);
-            botonSalir.Size = new Size(ancho * 14 / 100, altoBoton);
-            botonJugar.Font = new Font("Segoe UI", altoBoton * 0.42f, FontStyle.Bold, GraphicsUnit.Pixel);
-            botonRed.Font = new Font("Segoe UI", altoBoton * 0.38f, FontStyle.Bold, GraphicsUnit.Pixel);
-            botonSalir.Font = new Font("Segoe UI", altoBoton * 0.36f, FontStyle.Bold, GraphicsUnit.Pixel);
+            botonJugar.Size = new Size(ancho * 19 / 100, altoBoton);
+            botonRed.Size = new Size(ancho * 19 / 100, altoBoton);
+            botonHistorial.Size = new Size(ancho * 22 / 100, altoBoton);
+            botonSalir.Size = new Size(ancho * 13 / 100, altoBoton);
+            botonJugar.Font = new Font("Segoe UI", altoBoton * 0.40f, FontStyle.Bold, GraphicsUnit.Pixel);
+            botonRed.Font = new Font("Segoe UI", altoBoton * 0.36f, FontStyle.Bold, GraphicsUnit.Pixel);
+            botonHistorial.Font = new Font("Segoe UI", altoBoton * 0.34f, FontStyle.Bold, GraphicsUnit.Pixel);
+            botonSalir.Font = new Font("Segoe UI", altoBoton * 0.34f, FontStyle.Bold, GraphicsUnit.Pixel);
 
             int separacion = ancho * 2 / 100;
             int y = alto * 79 / 100;
-            int x = (ancho - botonJugar.Width - botonRed.Width - botonSalir.Width - 2 * separacion) / 2;
+            int x = (ancho - botonJugar.Width - botonRed.Width - botonHistorial.Width - botonSalir.Width - 3 * separacion) / 2;
             botonJugar.Location = new Point(x, y);
             botonRed.Location = new Point(botonJugar.Right + separacion, y);
-            botonSalir.Location = new Point(botonRed.Right + separacion, y);
+            botonHistorial.Location = new Point(botonRed.Right + separacion, y);
+            botonSalir.Location = new Point(botonHistorial.Right + separacion, y);
 
             etiquetaEstado.Font = new Font("Segoe UI", Math.Max(9f, alto * 0.018f), FontStyle.Bold, GraphicsUnit.Point);
             AcomodarEstado();
@@ -166,6 +183,7 @@ namespace Juego_UNO
                 }
 
                 botonJugar.Enabled = apiDisponible;
+                botonHistorial.Enabled = apiDisponible;
                 AcomodarEstado();
 
                 // Espera 3 segundos ANTES de volver a iniciar el ciclo
@@ -197,6 +215,24 @@ namespace Juego_UNO
             Show();
             monitoreando = true;
             await RevisarApi();
+        }
+
+        /// <summary>
+        /// Abre el historial en su propia ventana, sin bloquear esta (se puede seguir jugando).
+        /// Si ya estaba abierto, solo lo trae al frente.
+        /// </summary>
+        private void AbrirHistorial()
+        {
+            if (historial != null && !historial.IsDisposed)
+            {
+                if (historial.WindowState == FormWindowState.Minimized)
+                    historial.WindowState = FormWindowState.Normal;
+                historial.Activate();
+                return;
+            }
+            historial = new FormHistorial();
+            historial.FormClosed += (s, e) => historial = null;
+            historial.Show();
         }
 
         /// <summary>
